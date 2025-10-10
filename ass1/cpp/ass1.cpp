@@ -85,7 +85,7 @@ inline auto calculate_distance_matrix(const Points& points) {
             int dx = A.x - B.x;
             int dy = A.y - B.y;
 
-            int dist = sqrt(dx*dx + dy*dy);
+            int dist = round(sqrt(dx*dx + dy*dy));
             distance_mat[i].emplace_back(dist + B.cost);
         }
     }
