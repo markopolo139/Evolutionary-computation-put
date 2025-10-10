@@ -243,6 +243,75 @@ inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& d
     return solution;
 }
 
+inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+    Solution solution;
+    solution.reserve(solution_length);
+    size_t num_points = distance_mat.size();
+
+    if (num_points < 2 || solution_length < 2) {
+        if (num_points >= 1 && solution_length >= 1) solution.push_back(starting_point);
+        return solution;
+    }
+
+    // 1. Initialization: Start with the given point and find its nearest neighbor.
+    int nearest_neighbor = -1;
+    int min_dist = std::numeric_limits<int>::max();
+    for (size_t i = 0; i < num_points; ++i) {
+        if (i != starting_point && distance_mat[starting_point][i] < min_dist) {
+            min_dist = distance_mat[starting_point][i];
+            nearest_neighbor = i;
+        }
+    }
+    
+    solution.push_back(starting_point);
+    solution.push_back(nearest_neighbor);
+    
+    std::vector<bool> visited(num_points, false);
+    visited[starting_point] = true;
+    visited[nearest_neighbor] = true;
+
+    // 2. Iterative Expansion
+    while (solution.size() < solution_length) {
+        // a. Selection Step: Find unvisited node k closest to any node in the cycle
+        int best_k_to_add = -1;
+        int min_selection_dist = std::numeric_limits<int>::max();
+
+        for (size_t k = 0; k < num_points; ++k) {
+            if (!visited[k]) {
+                for (int i_in_cycle : solution) {
+                    if (distance_mat[i_in_cycle][k] < min_selection_dist) {
+                        min_selection_dist = distance_mat[i_in_cycle][k];
+                        best_k_to_add = k;
+                    }
+                }
+            }
+        }
+        
+        if (best_k_to_add == -1) break;
+
+        // b. Insertion Step: Find the best place to insert best_k_to_add
+        size_t best_insertion_index = -1;
+        int min_cost_increase = std::numeric_limits<int>::max();
+
+        for (size_t j = 0; j < solution.size(); ++j) {
+            int from_node = solution[j];
+            int to_node = solution[(j + 1) % solution.size()];
+
+            int cost_increase = distance_mat[from_node][best_k_to_add] + distance_mat[best_k_to_add][to_node] - distance_mat[from_node][to_node];
+
+            if (cost_increase < min_cost_increase) {
+                min_cost_increase = cost_increase;
+                best_insertion_index = j + 1;
+            }
+        }
+
+        solution.insert(solution.begin() + best_insertion_index, best_k_to_add);
+        visited[best_k_to_add] = true;
+    }
+
+    return solution;
+}
+
 
 int main(void) {
     std::string_view instance{"../TSPA.csv"};
@@ -276,6 +345,11 @@ int main(void) {
     for (size_t i = 0; i < points.size(); ++i)
         solutions.emplace_back(nearest_neighbor_insert(solution_length, distance_mat, i));
     calculate_statistics(points, distance_mat, solutions, "nn_insert", "Nearest neighbor considering adding the node at all possible position");
+
+    solutions.clear();
+    for (size_t i = 0; i < points.size(); ++i)
+        solutions.emplace_back(greedy_cycle(solution_length, distance_mat, i));
+    calculate_statistics(points, distance_mat, solutions, "gc", "Greedy Cycle");
 
     return 0;
 }
