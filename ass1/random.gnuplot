@@ -1,4 +1,4 @@
-set terminal pngcairo size 1000,800 enhanced font 'Verdana,10'
+set terminal pngcairo size 1000,450 enhanced font 'Verdana,10'
 set output 'solution_random.png'
 
 set title 'Random solution'
