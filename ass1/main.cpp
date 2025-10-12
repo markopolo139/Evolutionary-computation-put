@@ -99,7 +99,7 @@ inline void export_solution(const Points& points, const Solution& solution, std:
         std::cout << i << ", ";
     std::cout << solution.front() << std::endl;
 
-    std::ofstream points_csv("../points_" + method + ".csv");
+    std::ofstream points_csv("./points_" + method + ".csv");
     points_csv << "index,x,y,cost,selected" << std::endl;
     for (size_t i = 0; i < points.size(); ++i) {
         bool selected = std::find(solution.begin(), solution.end(), i) != solution.end();
@@ -107,7 +107,7 @@ inline void export_solution(const Points& points, const Solution& solution, std:
         points_csv << i << "," << point.x << "," << point.y << "," << point.cost << "," << selected << std::endl;
     }
 
-    std::ofstream solution_csv("../solution_" + method + ".csv");
+    std::ofstream solution_csv("./solution_" + method + ".csv");
     for (size_t i = 0; i < solution.size(); ++i) {
         const Point& from = points[solution[i]];
         const Point& to = points[solution[(i+1) % solution.size()]];
@@ -314,7 +314,7 @@ inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat
 
 
 int main(void) {
-    std::string_view instance{"../TSPA.csv"};
+    std::string_view instance{"./TSPA.csv"};
     std::cout << "results for: " << instance << std::endl;
 
     auto points = read_points(std::ifstream(std::string(instance)));
