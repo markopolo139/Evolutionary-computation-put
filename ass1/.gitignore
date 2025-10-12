@@ -1,4 +1,4 @@
-points*.csv
-solution*.csv
-solution*.png
+*points*.csv
+*solution*.csv
+*solution*.png
 main

@@ -19,7 +19,7 @@ using DistanceMatrix = std::vector<std::vector<int>>;
 using Solution = std::vector<int>;
 using Solutions = std::vector<Solution>;
 
-inline auto read_points(auto input) {
+inline auto read_points(auto& input) {
     Points points;
 
     if (!input.is_open()) {
@@ -93,13 +93,13 @@ inline auto calculate_distance_matrix(const Points& points) {
     return distance_mat;
 }
 
-inline void export_solution(const Points& points, const Solution& solution, std::string method) {
+inline void export_solution(const Points& points, const Solution& solution, std::string method, const std::string& instance) {
     std::cout << "Best:  ";
     for (int i : solution)
         std::cout << i << ", ";
     std::cout << solution.front() << std::endl;
 
-    std::ofstream points_csv("./points_" + method + ".csv");
+    std::ofstream points_csv(instance + "_points_" + method + ".csv");
     points_csv << "index,x,y,cost,selected" << std::endl;
     for (size_t i = 0; i < points.size(); ++i) {
         bool selected = std::find(solution.begin(), solution.end(), i) != solution.end();
@@ -107,7 +107,7 @@ inline void export_solution(const Points& points, const Solution& solution, std:
         points_csv << i << "," << point.x << "," << point.y << "," << point.cost << "," << selected << std::endl;
     }
 
-    std::ofstream solution_csv("./solution_" + method + ".csv");
+    std::ofstream solution_csv(instance + "_solution_" + method + ".csv");
     for (size_t i = 0; i < solution.size(); ++i) {
         const Point& from = points[solution[i]];
         const Point& to = points[solution[(i+1) % solution.size()]];
@@ -127,7 +127,7 @@ inline auto calculate_objective_function(const DistanceMatrix& distance_mat, con
     return result;
 }
 
-inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const Solutions& solutions, std::string_view method_short, std::string_view method) {
+inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const Solutions& solutions, const std::string& instance, std::string_view method_short, std::string_view method) {
     int min = std::numeric_limits<int>::max();
     int max = std::numeric_limits<int>::min();
     size_t sum = 0;
@@ -155,7 +155,7 @@ inline void calculate_statistics(const Points& points, const DistanceMatrix& dis
     std::cout << "Max:    " << max << std::endl;
 
     if (best.has_value())
-        export_solution(points, *best, std::string(method_short));
+        export_solution(points, *best, std::string(method_short), instance);
 
     std::cout << std::endl;
 }
@@ -313,13 +313,27 @@ inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat
 }
 
 
-int main(void) {
-    std::string_view instance{"./TSPA.csv"};
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Error: This program requires exactly one argument. It should specify the name of the instance" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <instance>" << std::endl;
+        return 1; 
+    }
+    std::string instance = argv[1];
     std::cout << "results for: " << instance << std::endl;
 
-    auto points = read_points(std::ifstream(std::string(instance)));
-    if (points.empty())
+    std::string instance_file = instance + ".csv";
+    std::ifstream file(instance_file);
+    if (!file.is_open()) {
+        std::cerr << "Error: File not found: " << instance_file << std::endl;
         return 1;
+    }
+
+    auto points = read_points(file);
+    if (points.empty()){
+        std::cerr << "Error: No points found in the file: " << instance_file<< std::endl;
+        return 1;
+    }
     std::cout << "collected points: " << points.size() << std::endl;
 
     auto distance_mat = calculate_distance_matrix(points);
@@ -334,22 +348,22 @@ int main(void) {
     Solutions solutions;
     for (size_t i = 0; i < points.size(); ++i) 
         solutions.emplace_back(random_solution(points.size(), solution_length, rng));
-    calculate_statistics(points, distance_mat, solutions, "random", "Random solution");
+    calculate_statistics(points, distance_mat, solutions, instance, "random", "Random solution");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
         solutions.emplace_back(nearest_neighbor_back(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, "nn_back", "Nearest neighbor considering adding the node only at the end of the current path");
+    calculate_statistics(points, distance_mat, solutions, instance, "nn_back", "Nearest neighbor considering adding the node only at the end of the current path");
     
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
         solutions.emplace_back(nearest_neighbor_insert(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, "nn_insert", "Nearest neighbor considering adding the node at all possible position");
+    calculate_statistics(points, distance_mat, solutions, instance, "nn_insert", "Nearest neighbor considering adding the node at all possible position");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
         solutions.emplace_back(greedy_cycle(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, "gc", "Greedy Cycle");
+    calculate_statistics(points, distance_mat, solutions, instance, "gc", "Greedy Cycle");
 
     return 0;
 }
