@@ -216,17 +216,22 @@ inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& d
 
         for (size_t p = 0; p < distance_mat.size(); ++p) {
             if (!visited[p]) {
-                for (size_t j = 0; j < solution.size(); ++j) {
-                    int from_node = solution[j];
-                    int to_node = solution[(j + 1) % solution.size()];
-
-                    // Calculate the cost increase: dist(A, p) + dist(p, B) - dist(A, B)
-                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
+                    int cost_increase;
+                    if (insert_index == 0) {
+                        cost_increase = distance_mat[p][solution.front()];
+                    } else if (insert_index == solution.size()) {
+                        cost_increase = distance_mat[solution.back()][p];
+                    } else {
+                        int from_node = solution[insert_index - 1];
+                        int to_node = solution[insert_index];
+                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                    }
 
                     if (cost_increase < min_cost_increase) {
                         min_cost_increase = cost_increase;
                         best_point_to_add = p;
-                        best_insertion_index = j + 1;
+                        best_insertion_index = insert_index;
                     }
                 }
             }
