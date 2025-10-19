@@ -9,6 +9,7 @@
 #include <sstream>
 #include <numeric>
 #include <cmath>
+#include <map>
 
 struct Point {
     int x, y, cost;
@@ -86,18 +87,25 @@ inline auto calculate_distance_matrix(const Points& points) {
             int dy = A.y - B.y;
 
             int dist = round(sqrt(dx*dx + dy*dy));
-            distance_mat[i].emplace_back(dist + B.cost);
+            distance_mat[i].emplace_back(dist);
         }
     }
 
     return distance_mat;
 }
+#ifndef DONT_PRINT_LATEX
+std::map<std::string, Solution> best_solutions;
+#endif
 
 inline void export_solution(const Points& points, const Solution& solution, std::string method, const std::string& instance) {
+#ifdef DONT_PRINT_LATEX
     std::cout << "Best:  ";
     for (int i : solution)
         std::cout << i << ", ";
     std::cout << solution.front() << std::endl;
+#else
+    best_solutions[method] = solution;
+#endif
 
     std::ofstream points_csv(instance + "_points_" + method + ".csv");
     points_csv << "index,x,y,cost,selected" << std::endl;
@@ -118,23 +126,23 @@ inline void export_solution(const Points& points, const Solution& solution, std:
     }
 }
 
-inline auto calculate_objective_function(const DistanceMatrix& distance_mat, const Solution& solution) {
+inline auto calculate_objective_function(const DistanceMatrix& distance_mat, const Solution& solution, const std::vector<int>& node_costs) {
     int result = 0;
     for (size_t i = 0; i < solution.size() - 1; ++i) {
-        result += distance_mat[solution[i]][solution[i+1]];
+        result += distance_mat[solution[i]][solution[i+1]] + node_costs[solution[i+1]];
     }
-    result += distance_mat[solution.back()][solution.front()];
+    result += distance_mat[solution.back()][solution.front()] + node_costs[solution.front()];
     return result;
 }
 
-inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const Solutions& solutions, const std::string& instance, std::string_view method_short, std::string_view method) {
+inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const Solutions& solutions, const std::string& instance, std::string_view method_short, std::string_view method) {
     int min = std::numeric_limits<int>::max();
     int max = std::numeric_limits<int>::min();
     size_t sum = 0;
     std::optional<Solution> best{ std::nullopt };
 
     for (const Solution& solution : solutions) {
-        int objective_function = calculate_objective_function(distance_mat, solution);
+        int objective_function = calculate_objective_function(distance_mat, solution, node_costs);
 
         if (objective_function <= min) {
             min = objective_function;
@@ -149,10 +157,14 @@ inline void calculate_statistics(const Points& points, const DistanceMatrix& dis
 
     double avg = sum / (double)solutions.size();
 
+#ifdef DONT_PRINT_LATEX
     std::cout << "Method: " << method << std::endl;
     std::cout << "Min:    " << min << std::endl;
     std::cout << "Avg:    " << avg << std::endl;
     std::cout << "Max:    " << max << std::endl;
+#else
+    std::cout << method << " & " << min << " & " << avg << " & " << max << " \\\\";
+#endif
 
     if (best.has_value())
         export_solution(points, *best, std::string(method_short), instance);
@@ -170,7 +182,7 @@ inline auto random_solution(int points_length, int solution_length, auto& random
     return solution;
 }
 
-inline auto nearest_neighbor_back(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+inline auto nearest_neighbor_back(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
     Solution solution;
     solution.reserve(solution_length);
     solution.push_back(starting_point);
@@ -184,9 +196,9 @@ inline auto nearest_neighbor_back(int solution_length, const DistanceMatrix& dis
         {
             if (std::find(solution.begin(), solution.end(), i) != solution.end())
                 continue;
-            if (neighbors[i] <= min_dist)
+            if (neighbors[i] + node_costs[i] <= min_dist)
             {
-                min_dist = neighbors[i];
+                min_dist = neighbors[i] + node_costs[i];
                 selected = i;
             }
         }
@@ -201,7 +213,7 @@ inline auto nearest_neighbor_back(int solution_length, const DistanceMatrix& dis
     return solution;
 }
 
-inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
     Solution solution;
     solution.reserve(solution_length);
     solution.push_back(starting_point);
@@ -219,13 +231,13 @@ inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& d
                 for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
                     int cost_increase;
                     if (insert_index == 0) {
-                        cost_increase = distance_mat[p][solution.front()];
+                        cost_increase = distance_mat[p][solution.front()] + node_costs[p];
                     } else if (insert_index == solution.size()) {
-                        cost_increase = distance_mat[solution.back()][p];
+                        cost_increase = distance_mat[solution.back()][p] + node_costs[p];
                     } else {
                         int from_node = solution[insert_index - 1];
                         int to_node = solution[insert_index];
-                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
                     }
 
                     if (cost_increase < min_cost_increase) {
@@ -248,7 +260,7 @@ inline auto nearest_neighbor_insert(int solution_length, const DistanceMatrix& d
     return solution;
 }
 
-inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
     Solution solution;
     solution.reserve(solution_length);
     size_t num_points = distance_mat.size();
@@ -258,13 +270,16 @@ inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat
         return solution;
     }
 
-    // 1. Initialization: Start with the given point and find its nearest neighbor.
+    // 1. Initialization: Start with the given point and find its nearest neighbor to form a cycle.
     int nearest_neighbor = -1;
     int min_dist = std::numeric_limits<int>::max();
     for (size_t i = 0; i < num_points; ++i) {
-        if (i != starting_point && distance_mat[starting_point][i] < min_dist) {
-            min_dist = distance_mat[starting_point][i];
-            nearest_neighbor = i;
+        if (i != starting_point) {
+            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point] + node_costs[i];
+            if (dist < min_dist) {
+                min_dist = dist;
+                nearest_neighbor = i;
+            }
         }
     }
     
@@ -275,43 +290,42 @@ inline auto greedy_cycle(int solution_length, const DistanceMatrix& distance_mat
     visited[starting_point] = true;
     visited[nearest_neighbor] = true;
 
-    // 2. Iterative Expansion
+    // 2. Iterative Expansion with weighted regret
     while (solution.size() < solution_length) {
-        // a. Selection Step: Find unvisited node k closest to any node in the cycle
-        int best_k_to_add = -1;
-        int min_selection_dist = std::numeric_limits<int>::max();
+        int best_point_to_add = -1;
+        size_t best_insertion_index = -1;
+        double best_min_cost = std::numeric_limits<double>::max();
 
-        for (size_t k = 0; k < num_points; ++k) {
-            if (!visited[k]) {
-                for (int i_in_cycle : solution) {
-                    if (distance_mat[i_in_cycle][k] < min_selection_dist) {
-                        min_selection_dist = distance_mat[i_in_cycle][k];
-                        best_k_to_add = k;
+        for (size_t p = 0; p < num_points; ++p) {
+            if (!visited[p]) {
+                int min_cost = std::numeric_limits<int>::max();
+                size_t current_best_insertion_index = -1;
+
+                for (size_t j = 0; j < solution.size(); ++j) {
+                    int from_node = solution[j];
+                    int to_node = solution[(j + 1) % solution.size()];
+                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
+
+                    if (cost_increase < min_cost) {
+                        min_cost = cost_increase;
+                        current_best_insertion_index = j + 1;
                     }
+                }
+
+                if (min_cost < best_min_cost) {
+                    best_min_cost = min_cost;
+                    best_point_to_add = p;
+                    best_insertion_index = current_best_insertion_index;
                 }
             }
         }
-        
-        if (best_k_to_add == -1) break;
 
-        // b. Insertion Step: Find the best place to insert best_k_to_add
-        size_t best_insertion_index = -1;
-        int min_cost_increase = std::numeric_limits<int>::max();
-
-        for (size_t j = 0; j < solution.size(); ++j) {
-            int from_node = solution[j];
-            int to_node = solution[(j + 1) % solution.size()];
-
-            int cost_increase = distance_mat[from_node][best_k_to_add] + distance_mat[best_k_to_add][to_node] - distance_mat[from_node][to_node];
-
-            if (cost_increase < min_cost_increase) {
-                min_cost_increase = cost_increase;
-                best_insertion_index = j + 1;
-            }
+        if (best_point_to_add != -1) {
+            solution.insert(solution.begin() + best_insertion_index, best_point_to_add);
+            visited[best_point_to_add] = true;
+        } else {
+            break; // No unvisited nodes left to add
         }
-
-        solution.insert(solution.begin() + best_insertion_index, best_k_to_add);
-        visited[best_k_to_add] = true;
     }
 
     return solution;
@@ -350,25 +364,31 @@ int main(int argc, char* argv[]) {
     auto rng = std::default_random_engine{};
     rng.seed(156053 + 156042);
     
+    std::vector<int> node_costs;
+    node_costs.reserve(points.size());
+    for(const auto& p : points) {
+        node_costs.push_back(p.cost);
+    }
+
     Solutions solutions;
     for (size_t i = 0; i < points.size(); ++i) 
         solutions.emplace_back(random_solution(points.size(), solution_length, rng));
-    calculate_statistics(points, distance_mat, solutions, instance, "random", "Random solution");
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "random", "Random solution");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(nearest_neighbor_back(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "nn_back", "Nearest neighbor considering adding the node only at the end of the current path");
+        solutions.emplace_back(nearest_neighbor_back(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "nn_back", "Nearest neighbor considering adding the node only at the end of the current path");
     
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(nearest_neighbor_insert(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "nn_insert", "Nearest neighbor considering adding the node at all possible position");
+        solutions.emplace_back(nearest_neighbor_insert(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "nn_insert", "Nearest neighbor considering adding the node at all possible position");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(greedy_cycle(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "gc", "Greedy Cycle");
+        solutions.emplace_back(greedy_cycle(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "gc", "Greedy Cycle");
 
     return 0;
 }
