@@ -87,7 +87,7 @@ inline auto calculate_distance_matrix(const Points& points) {
             int dy = A.y - B.y;
 
             int dist = round(sqrt(dx*dx + dy*dy));
-            distance_mat[i].emplace_back(dist + B.cost);
+            distance_mat[i].emplace_back(dist);
         }
     }
 
@@ -127,23 +127,23 @@ inline void export_solution(const Points& points, const Solution& solution, std:
     }
 }
 
-inline auto calculate_objective_function(const DistanceMatrix& distance_mat, const Solution& solution) {
+inline auto calculate_objective_function(const DistanceMatrix& distance_mat, const Solution& solution, const std::vector<int>& node_costs) {
     int result = 0;
     for (size_t i = 0; i < solution.size() - 1; ++i) {
-        result += distance_mat[solution[i]][solution[i+1]];
+        result += distance_mat[solution[i]][solution[i+1]] + node_costs[solution[i+1]];
     }
-    result += distance_mat[solution.back()][solution.front()];
+    result += distance_mat[solution.back()][solution.front()] + node_costs[solution.front()];
     return result;
 }
 
-inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const Solutions& solutions, const std::string& instance, std::string_view method_short, std::string_view method) {
+inline void calculate_statistics(const Points& points, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const Solutions& solutions, const std::string& instance, std::string_view method_short, std::string_view method) {
     int min = std::numeric_limits<int>::max();
     int max = std::numeric_limits<int>::min();
     size_t sum = 0;
     std::optional<Solution> best{ std::nullopt };
 
     for (const Solution& solution : solutions) {
-        int objective_function = calculate_objective_function(distance_mat, solution);
+        int objective_function = calculate_objective_function(distance_mat, solution, node_costs);
 
         if (objective_function <= min) {
             min = objective_function;
@@ -174,7 +174,7 @@ inline void calculate_statistics(const Points& points, const DistanceMatrix& dis
 }
 
 // SOLUTIONS
-inline auto nn_insert_2_regret(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+inline auto nn_insert_2_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
     Solution solution;
     solution.reserve(solution_length);
     solution.push_back(starting_point);
@@ -197,13 +197,13 @@ inline auto nn_insert_2_regret(int solution_length, const DistanceMatrix& distan
                 for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
                     int cost_increase;
                     if (insert_index == 0) {
-                        cost_increase = distance_mat[p][solution.front()];
+                        cost_increase = distance_mat[p][solution.front()] + node_costs[p];
                     } else if (insert_index == solution.size()) {
-                        cost_increase = distance_mat[solution.back()][p];
+                        cost_increase = distance_mat[solution.back()][p] + node_costs[p];
                     } else {
                         int from_node = solution[insert_index - 1];
                         int to_node = solution[insert_index];
-                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
                     }
 
                     if (cost_increase < min_cost1) {
@@ -243,7 +243,7 @@ inline auto nn_insert_2_regret(int solution_length, const DistanceMatrix& distan
     return solution;
 }
 
-inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
+inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
     Solution solution;
     solution.reserve(solution_length);
     solution.push_back(starting_point);
@@ -265,13 +265,13 @@ inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix&
                 for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
                     int cost_increase;
                     if (insert_index == 0) {
-                        cost_increase = distance_mat[p][solution.front()];
+                        cost_increase = distance_mat[p][solution.front()] + node_costs[p];
                     } else if (insert_index == solution.size()) {
-                        cost_increase = distance_mat[solution.back()][p];
+                        cost_increase = distance_mat[solution.back()][p] + node_costs[p];
                     } else {
                         int from_node = solution[insert_index - 1];
                         int to_node = solution[insert_index];
-                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
                     }
 
                     if (cost_increase < min_cost1) {
@@ -306,7 +306,7 @@ inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix&
 }
 
 
-inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& distance_mat, int starting_point) {
+inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
     Solution solution;
     solution.reserve(solution_length);
     size_t num_points = distance_mat.size();
@@ -321,7 +321,7 @@ inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& dis
     int min_dist = std::numeric_limits<int>::max();
     for (size_t i = 0; i < num_points; ++i) {
         if (i != starting_point) {
-            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point];
+            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point] + node_costs[i];
             if (dist < min_dist) {
                 min_dist = dist;
                 nearest_neighbor = i;
@@ -352,7 +352,7 @@ inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& dis
                 for (size_t j = 0; j < solution.size(); ++j) {
                     int from_node = solution[j];
                     int to_node = solution[(j + 1) % solution.size()];
-                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
 
                     if (cost_increase < min_cost1) {
                         min_cost2 = min_cost1;
@@ -391,13 +391,15 @@ inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& dis
     return solution;
 }
 
-inline auto greedy_cycle_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
+inline auto greedy_cycle_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
     Solution solution;
     solution.reserve(solution_length);
     size_t num_points = distance_mat.size();
 
     if (num_points < 2 || solution_length < 2) {
-        if (num_points >= 1 && solution_length >= 1) solution.push_back(starting_point);
+        if (num_points >= 1 && solution_length >= 1) solution.push_back(
+            
+            starting_point);
         return solution;
     }
 
@@ -406,7 +408,7 @@ inline auto greedy_cycle_weighted_regret(int solution_length, const DistanceMatr
     int min_dist = std::numeric_limits<int>::max();
     for (size_t i = 0; i < num_points; ++i) {
         if (i != starting_point) {
-            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point];
+            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point] + node_costs[i];
             if (dist < min_dist) {
                 min_dist = dist;
                 nearest_neighbor = i;
@@ -436,7 +438,7 @@ inline auto greedy_cycle_weighted_regret(int solution_length, const DistanceMatr
                 for (size_t j = 0; j < solution.size(); ++j) {
                     int from_node = solution[j];
                     int to_node = solution[(j + 1) % solution.size()];
-                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node];
+                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
 
                     if (cost_increase < min_cost1) {
                         min_cost2 = min_cost1;
@@ -496,28 +498,34 @@ int main(int argc, char* argv[]) {
     auto distance_mat = calculate_distance_matrix(points);
     std::cout << "calculated the distance matrix" << std::endl;
 
+    std::vector<int> node_costs;
+    node_costs.reserve(points.size());
+    for(const auto& p : points) {
+        node_costs.push_back(p.cost);
+    }
+
     int solution_length = points.size() / 2; // - 1
     std::cout << std::endl;
     
     Solutions solutions;
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(nn_insert_2_regret(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "nn_insert_2_regret", "nn_insert_2_regret");
+        solutions.emplace_back(nn_insert_2_regret(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "nn_insert_2_regret", "nn_insert_2_regret");
     
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(nn_insert_weighted_regret(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "nn_insert_weighted_regret", "nn_insert_weighted_regret");
+        solutions.emplace_back(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "nn_insert_weighted_regret", "nn_insert_weighted_regret");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(greedy_cycle_2_regret(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "gc_2_regret", "gc_2_regret");
+        solutions.emplace_back(greedy_cycle_2_regret(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "gc_2_regret", "gc_2_regret");
 
     solutions.clear();
     for (size_t i = 0; i < points.size(); ++i)
-        solutions.emplace_back(greedy_cycle_weighted_regret(solution_length, distance_mat, i));
-    calculate_statistics(points, distance_mat, solutions, instance, "gc_weighted_regret", "gc_weighted_regret");
+        solutions.emplace_back(greedy_cycle_weighted_regret(solution_length, distance_mat, node_costs, i));
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "gc_weighted_regret", "gc_weighted_regret");
 
 #ifndef DONT_PRINT_LATEX
     for (const auto& kv : best_solutions) {
