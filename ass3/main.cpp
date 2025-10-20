@@ -212,75 +212,6 @@ inline auto local_search_2_opt(Solution solution, const DistanceMatrix& distance
     return solution;
 }
 
-inline auto nn_insert_2_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
-    Solution solution;
-    solution.reserve(solution_length);
-    solution.push_back(starting_point);
-
-    std::vector<bool> visited(distance_mat.size(), false);
-    visited[starting_point] = true;
-
-    while (solution.size() < solution_length) {
-        int best_point_to_add = -1;
-        size_t best_insertion_index = -1;
-        double max_regret = -1.0;
-        int cost_for_best_point = std::numeric_limits<int>::max();
-
-        for (size_t p = 0; p < distance_mat.size(); ++p) {
-            if (!visited[p]) {
-                int min_cost1 = std::numeric_limits<int>::max();
-                int min_cost2 = std::numeric_limits<int>::max();
-                size_t current_best_insertion_index = -1;
-
-                for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
-                    int cost_increase;
-                    if (insert_index == 0) {
-                        cost_increase = distance_mat[p][solution.front()] + node_costs[p];
-                    } else if (insert_index == solution.size()) {
-                        cost_increase = distance_mat[solution.back()][p] + node_costs[p];
-                    } else {
-                        int from_node = solution[insert_index - 1];
-                        int to_node = solution[insert_index];
-                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
-                    }
-
-                    if (cost_increase < min_cost1) {
-                        min_cost2 = min_cost1;
-                        min_cost1 = cost_increase;
-                        current_best_insertion_index = insert_index;
-                    } else if (cost_increase < min_cost2) {
-                        min_cost2 = cost_increase;
-                    }
-                }
-
-                double regret = (min_cost2 == std::numeric_limits<int>::max()) ? min_cost1 : (min_cost2 - min_cost1);
-
-                if (regret > max_regret) {
-                    max_regret = regret;
-                    best_point_to_add = p;
-                    best_insertion_index = current_best_insertion_index;
-                    cost_for_best_point = min_cost1;
-                } else if (regret == max_regret) {
-                    if (min_cost1 < cost_for_best_point) {
-                        best_point_to_add = p;
-                        best_insertion_index = current_best_insertion_index;
-                        cost_for_best_point = min_cost1;
-                    }
-                }
-            }
-        }
-
-        if (best_point_to_add != -1) {
-            solution.insert(solution.begin() + best_insertion_index, best_point_to_add);
-            visited[best_point_to_add] = true;
-        } else {
-            break; // No unvisited nodes left to add
-        }
-    }
-
-    return solution;
-}
-
 inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
     Solution solution;
     solution.reserve(solution_length);
@@ -343,174 +274,12 @@ inline auto nn_insert_weighted_regret(int solution_length, const DistanceMatrix&
     return solution;
 }
 
-
-inline auto greedy_cycle_2_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point) {
-    Solution solution;
-    solution.reserve(solution_length);
-    size_t num_points = distance_mat.size();
-
-    if (num_points < 2 || solution_length < 2) {
-        if (num_points >= 1 && solution_length >= 1) solution.push_back(starting_point);
-        return solution;
-    }
-
-    // 1. Initialization: Start with the given point and find its nearest neighbor to form a cycle.
-    int nearest_neighbor = -1;
-    int min_dist = std::numeric_limits<int>::max();
-    for (size_t i = 0; i < num_points; ++i) {
-        if (i != starting_point) {
-            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point] + node_costs[i];
-            if (dist < min_dist) {
-                min_dist = dist;
-                nearest_neighbor = i;
-            }
-        }
-    }
-    
-    solution.push_back(starting_point);
-    solution.push_back(nearest_neighbor);
-    
-    std::vector<bool> visited(num_points, false);
-    visited[starting_point] = true;
-    visited[nearest_neighbor] = true;
-
-    // 2. Iterative Expansion with 2-regret
-    while (solution.size() < solution_length) {
-        int best_point_to_add = -1;
-        size_t best_insertion_index = -1;
-        double max_regret = -1.0;
-        int cost_for_best_point = std::numeric_limits<int>::max();
-
-        for (size_t p = 0; p < num_points; ++p) {
-            if (!visited[p]) {
-                int min_cost1 = std::numeric_limits<int>::max();
-                int min_cost2 = std::numeric_limits<int>::max();
-                size_t current_best_insertion_index = -1;
-
-                for (size_t j = 0; j < solution.size(); ++j) {
-                    int from_node = solution[j];
-                    int to_node = solution[(j + 1) % solution.size()];
-                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
-
-                    if (cost_increase < min_cost1) {
-                        min_cost2 = min_cost1;
-                        min_cost1 = cost_increase;
-                        current_best_insertion_index = j + 1;
-                    } else if (cost_increase < min_cost2) {
-                        min_cost2 = cost_increase;
-                    }
-                }
-
-                double regret = (min_cost2 == std::numeric_limits<int>::max()) ? min_cost1 : (min_cost2 - min_cost1);
-
-                if (regret > max_regret) {
-                    max_regret = regret;
-                    best_point_to_add = p;
-                    best_insertion_index = current_best_insertion_index;
-                    cost_for_best_point = min_cost1;
-                } else if (regret == max_regret) {
-                    if (min_cost1 < cost_for_best_point) {
-                        best_point_to_add = p;
-                        best_insertion_index = current_best_insertion_index;
-                        cost_for_best_point = min_cost1;
-                    }
-                }
-            }
-        }
-
-        if (best_point_to_add != -1) {
-            solution.insert(solution.begin() + best_insertion_index, best_point_to_add);
-            visited[best_point_to_add] = true;
-        } else {
-            break; // No unvisited nodes left to add
-        }
-    }
-
-    return solution;
-}
-
-inline auto greedy_cycle_weighted_regret(int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int starting_point, double regret_weight = 1.0, double cost_weight = 1.0) {
-    Solution solution;
-    solution.reserve(solution_length);
-    size_t num_points = distance_mat.size();
-
-    if (num_points < 2 || solution_length < 2) {
-        if (num_points >= 1 && solution_length >= 1) solution.push_back(starting_point);
-        return solution;
-    }
-
-    // 1. Initialization: Start with the given point and find its nearest neighbor to form a cycle.
-    int nearest_neighbor = -1;
-    int min_dist = std::numeric_limits<int>::max();
-    for (size_t i = 0; i < num_points; ++i) {
-        if (i != starting_point) {
-            int dist = distance_mat[starting_point][i] + distance_mat[i][starting_point] + node_costs[i];
-            if (dist < min_dist) {
-                min_dist = dist;
-                nearest_neighbor = i;
-            }
-        }
-    }
-    
-    solution.push_back(starting_point);
-    solution.push_back(nearest_neighbor);
-    
-    std::vector<bool> visited(num_points, false);
-    visited[starting_point] = true;
-    visited[nearest_neighbor] = true;
-
-    // 2. Iterative Expansion with weighted regret
-    while (solution.size() < solution_length) {
-        int best_point_to_add = -1;
-        size_t best_insertion_index = -1;
-        double max_weighted_score = -std::numeric_limits<double>::max();
-
-        for (size_t p = 0; p < num_points; ++p) {
-            if (!visited[p]) {
-                int min_cost1 = std::numeric_limits<int>::max();
-                int min_cost2 = std::numeric_limits<int>::max();
-                size_t current_best_insertion_index = -1;
-
-                for (size_t j = 0; j < solution.size(); ++j) {
-                    int from_node = solution[j];
-                    int to_node = solution[(j + 1) % solution.size()];
-                    int cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
-
-                    if (cost_increase < min_cost1) {
-                        min_cost2 = min_cost1;
-                        min_cost1 = cost_increase;
-                        current_best_insertion_index = j + 1;
-                    } else if (cost_increase < min_cost2) {
-                        min_cost2 = cost_increase;
-                    }
-                }
-
-                double regret = (min_cost2 == std::numeric_limits<int>::max()) ? min_cost1 : (min_cost2 - min_cost1);
-                double weighted_score = regret_weight * regret - cost_weight * min_cost1;
-
-                if (weighted_score > max_weighted_score) {
-                    max_weighted_score = weighted_score;
-                    best_point_to_add = p;
-                    best_insertion_index = current_best_insertion_index;
-                }
-            }
-        }
-
-        if (best_point_to_add != -1) {
-            solution.insert(solution.begin() + best_insertion_index, best_point_to_add);
-            visited[best_point_to_add] = true;
-        } else {
-            break; // No unvisited nodes left to add
-        }
-    }
-
-    return solution;
-}
-
-Solution local_search_steepest_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
+Solution local_search_steepest_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
     bool improvement = true;
-    while (improvement) {
+    int steps = 0;
+    while (improvement && steps < max_steps) {
         improvement = false;
+        steps++;
         int best_delta = 0;
         std::function<void()> best_move;
 
@@ -575,10 +344,12 @@ Solution local_search_steepest_nodes(Solution solution, const DistanceMatrix& di
     return solution;
 }
 
-Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
+Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
     bool improvement = true;
-    while (improvement) {
+    int steps = 0;
+    while (improvement && steps < max_steps) {
         improvement = false;
+        steps++;
         int best_delta = 0;
         std::function<void()> best_move;
 
@@ -636,13 +407,14 @@ Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& di
     return solution;
 }
 
-Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
+Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
     bool improvement = true;
     std::random_device rd;
     std::mt19937 g(rd());
-
-    while (improvement) {
+    int steps = 0;
+    while (improvement && steps < max_steps) {
         improvement = false;
+        steps++;
         
         std::vector<std::function<void()>> moves;
 
@@ -709,14 +481,14 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
     return solution;
 }
 
-Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
+Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
     bool improvement = true;
     std::random_device rd;
     std::mt19937 g(rd());
-
-    while (improvement) {
+    int steps = 0;
+    while (improvement && steps < max_steps) {
         improvement = false;
-
+        steps++;
         std::vector<std::function<void()>> moves;
 
         // Intra-route moves (edge exchange)
@@ -827,7 +599,7 @@ int main(int argc, char* argv[]) {
     Solutions solutions;
 
     // 1. Steepest nodes with random start
-    for (size_t i = 0; i < 100; ++i) {
+    for (size_t i = 0; i < 10; ++i) {
         solutions.emplace_back(local_search_steepest_nodes(generate_random_solution(solution_length, points.size()), distance_mat, node_costs));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_nodes_random", "ls_steepest_nodes_random");
