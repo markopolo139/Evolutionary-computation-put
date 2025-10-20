@@ -414,36 +414,43 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
     while (improvement && steps < max_steps) {
         improvement = false;
         steps++;
-        
-        std::vector<std::function<void()>> moves;
+
+        std::vector<int> p(solution.size());
+        std::iota(p.begin(), p.end(), 0);
+        std::shuffle(p.begin(), p.end(), g);
 
         // Intra-route moves (node exchange)
-        for (size_t i = 0; i < solution.size(); ++i) {
-            for (size_t j = i + 1; j < solution.size(); ++j) {
-                moves.push_back([i, j, &distance_mat, &solution, &improvement](){
-                    int prev_i = (i == 0) ? solution.back() : solution[i - 1];
-                    int next_i = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                    int prev_j = (j == 0) ? solution.back() : solution[j - 1];
-                    int next_j = (j == solution.size() - 1) ? solution.front() : solution[j + 1];
+        for (size_t i_idx = 0; i_idx < p.size() && !improvement; ++i_idx) {
+            for (size_t j_idx = i_idx + 1; j_idx < p.size() && !improvement; ++j_idx) {
+                size_t i = p[i_idx];
+                size_t j = p[j_idx];
 
-                    int delta;
-                    if (j == i + 1) {
-                        delta = distance_mat[prev_i][solution[j]] + distance_mat[solution[i]][next_j] -
-                                (distance_mat[prev_i][solution[i]] + distance_mat[solution[j]][next_j]);
-                    } else {
-                        delta = distance_mat[prev_i][solution[j]] + distance_mat[solution[j]][next_i] +
-                                distance_mat[prev_j][solution[i]] + distance_mat[solution[i]][next_j] -
-                                (distance_mat[prev_i][solution[i]] + distance_mat[solution[i]][next_i] +
-                                 distance_mat[prev_j][solution[j]] + distance_mat[solution[j]][next_j]);
-                    }
+                if (i > j) std::swap(i, j);
 
-                    if (delta < 0) {
-                        std::swap(solution[i], solution[j]);
-                        improvement = true;
-                    }
-                });
+                int prev_i = (i == 0) ? solution.back() : solution[i - 1];
+                int next_i = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
+                int prev_j = (j == 0) ? solution.back() : solution[j - 1];
+                int next_j = (j == solution.size() - 1) ? solution.front() : solution[j + 1];
+
+                int delta;
+                if (j == i + 1) {
+                    delta = distance_mat[prev_i][solution[j]] + distance_mat[solution[i]][next_j] -
+                            (distance_mat[prev_i][solution[i]] + distance_mat[solution[j]][next_j]);
+                } else {
+                    delta = distance_mat[prev_i][solution[j]] + distance_mat[solution[j]][next_i] +
+                            distance_mat[prev_j][solution[i]] + distance_mat[solution[i]][next_j] -
+                            (distance_mat[prev_i][solution[i]] + distance_mat[solution[i]][next_i] +
+                             distance_mat[prev_j][solution[j]] + distance_mat[solution[j]][next_j]);
+                }
+
+                if (delta < 0) {
+                    std::swap(solution[i], solution[j]);
+                    improvement = true;
+                }
             }
         }
+
+        if (improvement) continue;
 
         // Inter-route moves
         std::vector<int> non_solution_nodes;
@@ -452,29 +459,23 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
         for (size_t i = 0; i < distance_mat.size(); ++i) {
             if (!in_solution[i]) non_solution_nodes.push_back(i);
         }
+        std::shuffle(non_solution_nodes.begin(), non_solution_nodes.end(), g);
 
-        for (size_t i = 0; i < solution.size(); ++i) {
+        for (size_t i_idx = 0; i_idx < p.size() && !improvement; ++i_idx) {
+            size_t i = p[i_idx];
             for (int non_sol_node : non_solution_nodes) {
-                moves.push_back([i, non_sol_node, &distance_mat, &node_costs, &solution, &improvement](){
-                    int prev = (i == 0) ? solution.back() : solution[i - 1];
-                    int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                    
-                    int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                                (distance_mat[prev][solution[i]] + distance_mat[solution[i]][next] + node_costs[solution[i]]);
+                int prev = (i == 0) ? solution.back() : solution[i - 1];
+                int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
+                
+                int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
+                            (distance_mat[prev][solution[i]] + distance_mat[solution[i]][next] + node_costs[solution[i]]);
 
-                    if (delta < 0) {
-                        solution[i] = non_sol_node;
-                        improvement = true;
-                    }
-                });
+                if (delta < 0) {
+                    solution[i] = non_sol_node;
+                    improvement = true;
+                    break; 
+                }
             }
-        }
-        
-        std::shuffle(moves.begin(), moves.end(), g);
-
-        for(auto& move : moves) {
-            move();
-            if(improvement) break;
         }
     }
     return solution;
@@ -487,28 +488,35 @@ Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& dist
     while (improvement && steps < max_steps) {
         improvement = false;
         steps++;
-        std::vector<std::function<void()>> moves;
+        
+        std::vector<int> p(solution.size());
+        std::iota(p.begin(), p.end(), 0);
+        std::shuffle(p.begin(), p.end(), g);
 
         // Intra-route moves (edge exchange)
-        for (size_t i = 0; i < solution.size(); ++i) {
-            for (size_t j = i + 1; j < solution.size(); ++j) {
-                moves.push_back([i, j, &distance_mat, &solution, &improvement](){
-                    int u1 = solution[i];
-                    int v1 = solution[(i + 1) % solution.size()];
-                    int u2 = solution[j];
-                    int v2 = solution[(j + 1) % solution.size()];
-                    if (v1 == u2 || u1 == v2) return;
+        for (size_t i_idx = 0; i_idx < p.size() && !improvement; ++i_idx) {
+            for (size_t j_idx = i_idx + 1; j_idx < p.size() && !improvement; ++j_idx) {
+                size_t i = p[i_idx];
+                size_t j = p[j_idx];
+                if (i > j) std::swap(i, j);
 
-                    int delta = distance_mat[u1][u2] + distance_mat[v1][v2] -
-                                (distance_mat[u1][v1] + distance_mat[u2][v2]);
+                int u1 = solution[i];
+                int v1 = solution[(i + 1) % solution.size()];
+                int u2 = solution[j];
+                int v2 = solution[(j + 1) % solution.size()];
+                if (v1 == u2 || u1 == v2) continue;
 
-                    if (delta < 0) {
-                        std::reverse(solution.begin() + i + 1, solution.begin() + j + 1);
-                        improvement = true;
-                    }
-                });
+                int delta = distance_mat[u1][u2] + distance_mat[v1][v2] -
+                            (distance_mat[u1][v1] + distance_mat[u2][v2]);
+
+                if (delta < 0) {
+                    std::reverse(solution.begin() + i + 1, solution.begin() + j + 1);
+                    improvement = true;
+                }
             }
         }
+
+        if (improvement) continue;
 
         // Inter-route moves
         std::vector<int> non_solution_nodes;
@@ -517,29 +525,23 @@ Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& dist
         for (size_t i = 0; i < distance_mat.size(); ++i) {
             if (!in_solution[i]) non_solution_nodes.push_back(i);
         }
+        std::shuffle(non_solution_nodes.begin(), non_solution_nodes.end(), g);
 
-        for (size_t i = 0; i < solution.size(); ++i) {
+        for (size_t i_idx = 0; i_idx < p.size() && !improvement; ++i_idx) {
+            size_t i = p[i_idx];
             for (int non_sol_node : non_solution_nodes) {
-                moves.push_back([i, non_sol_node, &distance_mat, &node_costs, &solution, &improvement](){
-                    int prev = (i == 0) ? solution.back() : solution[i - 1];
-                    int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                    
-                    int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                                (distance_mat[prev][solution[i]] + distance_mat[solution[i]][next] + node_costs[solution[i]]);
+                int prev = (i == 0) ? solution.back() : solution[i - 1];
+                int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
+                
+                int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
+                            (distance_mat[prev][solution[i]] + distance_mat[solution[i]][next] + node_costs[solution[i]]);
 
-                    if (delta < 0) {
-                        solution[i] = non_sol_node;
-                        improvement = true;
-                    }
-                });
+                if (delta < 0) {
+                    solution[i] = non_sol_node;
+                    improvement = true;
+                    break;
+                }
             }
-        }
-        
-        std::shuffle(moves.begin(), moves.end(), g);
-
-        for(auto& move : moves) {
-            move();
-            if(improvement) break;
         }
     }
     return solution;
