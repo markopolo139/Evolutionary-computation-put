@@ -407,10 +407,9 @@ Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& di
     return solution;
 }
 
-Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
+Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, auto& random_engine, int max_steps = 1000) {
     bool improvement = true;
-    std::random_device rd;
-    std::mt19937 g(rd());
+    std::mt19937 g(random_engine());
     int steps = 0;
     while (improvement && steps < max_steps) {
         improvement = false;
@@ -421,7 +420,7 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
         // Intra-route moves (node exchange)
         for (size_t i = 0; i < solution.size(); ++i) {
             for (size_t j = i + 1; j < solution.size(); ++j) {
-                moves.push_back([=, &solution, &improvement](){
+                moves.push_back([i, j, &distance_mat, &solution, &improvement](){
                     int prev_i = (i == 0) ? solution.back() : solution[i - 1];
                     int next_i = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
                     int prev_j = (j == 0) ? solution.back() : solution[j - 1];
@@ -456,7 +455,7 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
 
         for (size_t i = 0; i < solution.size(); ++i) {
             for (int non_sol_node : non_solution_nodes) {
-                moves.push_back([=, &solution, &improvement](){
+                moves.push_back([i, non_sol_node, &distance_mat, &node_costs, &solution, &improvement](){
                     int prev = (i == 0) ? solution.back() : solution[i - 1];
                     int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
                     
@@ -481,10 +480,9 @@ Solution local_search_greedy_nodes(Solution solution, const DistanceMatrix& dist
     return solution;
 }
 
-Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 1000) {
+Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, auto& random_engine, int max_steps = 1000) {
     bool improvement = true;
-    std::random_device rd;
-    std::mt19937 g(rd());
+    std::mt19937 g(random_engine());
     int steps = 0;
     while (improvement && steps < max_steps) {
         improvement = false;
@@ -494,7 +492,7 @@ Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& dist
         // Intra-route moves (edge exchange)
         for (size_t i = 0; i < solution.size(); ++i) {
             for (size_t j = i + 1; j < solution.size(); ++j) {
-                moves.push_back([=, &solution, &improvement](){
+                moves.push_back([i, j, &distance_mat, &solution, &improvement](){
                     int u1 = solution[i];
                     int v1 = solution[(i + 1) % solution.size()];
                     int u2 = solution[j];
@@ -522,7 +520,7 @@ Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& dist
 
         for (size_t i = 0; i < solution.size(); ++i) {
             for (int non_sol_node : non_solution_nodes) {
-                moves.push_back([=, &solution, &improvement](){
+                moves.push_back([i, non_sol_node, &distance_mat, &node_costs, &solution, &improvement](){
                     int prev = (i == 0) ? solution.back() : solution[i - 1];
                     int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
                     
@@ -547,17 +545,12 @@ Solution local_search_greedy_edges(Solution solution, const DistanceMatrix& dist
     return solution;
 }
 
-Solution generate_random_solution(int solution_length, int num_points) {
-    Solution solution;
-    solution.reserve(solution_length);
-    std::vector<int> p(num_points);
-    std::iota(p.begin(), p.end(), 0);
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(p.begin(), p.end(), g);
-    for (int i = 0; i < solution_length; ++i) {
-        solution.push_back(p[i]);
-    }
+inline auto generate_random_solution(int solution_length, int points_length, auto& random_engine) {
+    Solution solution(points_length);
+    std::iota(solution.begin(), solution.end(), 0);
+    std::shuffle(solution.begin(), solution.end(), random_engine);
+    solution.resize(solution_length);
+
     return solution;
 }
 
@@ -593,6 +586,9 @@ int main(int argc, char* argv[]) {
         node_costs.push_back(p.cost);
     }
 
+    auto rng = std::default_random_engine{};
+    rng.seed(156053 + 156042);
+
     int solution_length = points.size() / 2; // - 1
     std::cout << std::endl;
     
@@ -600,7 +596,7 @@ int main(int argc, char* argv[]) {
 
     // 1. Steepest nodes with random start
     for (size_t i = 0; i < 10; ++i) {
-        solutions.emplace_back(local_search_steepest_nodes(generate_random_solution(solution_length, points.size()), distance_mat, node_costs));
+        solutions.emplace_back(local_search_steepest_nodes(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_nodes_random", "ls_steepest_nodes_random");
     solutions.clear();
@@ -614,7 +610,7 @@ int main(int argc, char* argv[]) {
 
     // 3. Steepest edges with random start
     for (size_t i = 0; i < 100; ++i) {
-        solutions.emplace_back(local_search_steepest_edges(generate_random_solution(solution_length, points.size()), distance_mat, node_costs));
+        solutions.emplace_back(local_search_steepest_edges(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_edges_random", "ls_steepest_edges_random");
     solutions.clear();
@@ -628,28 +624,28 @@ int main(int argc, char* argv[]) {
 
     // 5. Greedy nodes with random start
     for (size_t i = 0; i < 100; ++i) {
-        solutions.emplace_back(local_search_greedy_nodes(generate_random_solution(solution_length, points.size()), distance_mat, node_costs));
+        solutions.emplace_back(local_search_greedy_nodes(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs, rng));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_nodes_random", "ls_greedy_nodes_random");
     solutions.clear();
 
     // 6. Greedy nodes with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
-        solutions.emplace_back(local_search_greedy_nodes(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs));
+        solutions.emplace_back(local_search_greedy_nodes(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs, rng));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_nodes_greedy", "ls_greedy_nodes_greedy");
     solutions.clear();
 
     // 7. Greedy edges with random start
     for (size_t i = 0; i < 100; ++i) {
-        solutions.emplace_back(local_search_greedy_edges(generate_random_solution(solution_length, points.size()), distance_mat, node_costs));
+        solutions.emplace_back(local_search_greedy_edges(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs, rng));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_edges_random", "ls_greedy_edges_random");
     solutions.clear();
 
     // 8. Greedy edges with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
-        solutions.emplace_back(local_search_greedy_edges(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs));
+        solutions.emplace_back(local_search_greedy_edges(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs, rng));
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_edges_greedy", "ls_greedy_edges_greedy");
     solutions.clear();
