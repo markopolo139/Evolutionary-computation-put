@@ -11,6 +11,7 @@
 #include <cmath>
 #include <map>
 #include <functional>
+#include <chrono>
 
 struct Point {
     int x, y, cost;
@@ -161,17 +162,37 @@ inline void calculate_statistics(const Points& points, const DistanceMatrix& dis
 
 #ifdef DONT_PRINT_LATEX
     std::cout << "Method: " << method << std::endl;
-    std::cout << "Min:    " << min << std::endl;
-    std::cout << "Avg:    " << avg << std::endl;
-    std::cout << "Max:    " << max << std::endl;
+    std::cout << "Scores: " << avg << " (" << min << " - " << max << ")" << std::endl;
 #else
     std::cout << method << " & " << min << " & " << avg << " & " << max << " \\";
 #endif
 
     if (best.has_value())
         export_solution(points, *best, std::string(method_short), instance);
+}
 
-    std::cout << std::endl;
+inline void calculate_and_print_time_statistics(const std::vector<std::chrono::duration<double, std::milli>>& times) {
+    if (times.empty()) {
+        return;
+    }
+
+    double min_time = std::numeric_limits<double>::max();
+    double max_time = std::numeric_limits<double>::min();
+    double sum_time = 0;
+
+    for (const auto& time : times) {
+        double time_ms = time.count();
+        if (time_ms < min_time) {
+            min_time = time_ms;
+        }
+        if (time_ms > max_time) {
+            max_time = time_ms;
+        }
+        sum_time += time_ms;
+    }
+
+    double avg_time = sum_time / times.size();
+    std::cout << "Time: " << avg_time << "ms (" << min_time << "ms - " << max_time << "ms)" << std::endl;
 }
 
 #include <unordered_set>
@@ -596,62 +617,111 @@ int main(int argc, char* argv[]) {
     std::cout << std::endl;
     
     Solutions solutions;
+    std::vector<std::chrono::duration<double, std::milli>> times;
 
     // 1. Steepest nodes with random start
     for (size_t i = 0; i < 10; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_steepest_nodes(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_nodes_random", "ls_steepest_nodes_random");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 2. Steepest nodes with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_steepest_nodes(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_nodes_greedy", "ls_steepest_nodes_greedy");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 3. Steepest edges with random start
     for (size_t i = 0; i < 100; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_steepest_edges(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_edges_random", "ls_steepest_edges_random");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 4. Steepest edges with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_steepest_edges(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_edges_greedy", "ls_steepest_edges_greedy");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 5. Greedy nodes with random start
     for (size_t i = 0; i < 100; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_greedy_nodes(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs, rng));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_nodes_random", "ls_greedy_nodes_random");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 6. Greedy nodes with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_greedy_nodes(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs, rng));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_nodes_greedy", "ls_greedy_nodes_greedy");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 7. Greedy edges with random start
     for (size_t i = 0; i < 100; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_greedy_edges(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs, rng));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_edges_random", "ls_greedy_edges_random");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
     // 8. Greedy edges with greedy start
     for (size_t i = 0; i < points.size(); ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(local_search_greedy_edges(nn_insert_weighted_regret(solution_length, distance_mat, node_costs, i), distance_mat, node_costs, rng));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_greedy_edges_greedy", "ls_greedy_edges_greedy");
+    calculate_and_print_time_statistics(times);
     solutions.clear();
+    times.clear();
+    std::cout << std::endl;
 
 #ifndef DONT_PRINT_LATEX
     for (const auto& kv : best_solutions) {
