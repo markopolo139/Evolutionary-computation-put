@@ -53,7 +53,13 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \section{Conclusions}
 
-TODO: write conclusions
+The local search algorithms, particularly those employing a greedy initial solution, demonstrate a significant improvement over simple constructive heuristics. The quality of the starting solution is crucial, as evidenced by the consistently better performance of methods with a greedy start compared to a random start.
+
+Among the neighborhood structures, the edge-based neighborhood (2-opt) proves to be more effective and efficient than the node-based neighborhood. This is reflected in both the solution quality and the computation times.
+
+The `ls\_steepest\_edges\_greedy` method stands out as the most effective algorithm, achieving the best scores for both TSPA and TSPB instances while also being one of the fastest. This suggests that a steepest search strategy combined with an edge-based neighborhood and a good initial solution is a powerful combination for this problem.
+
+In general, the results highlight the importance of a well-chosen combination of initial solution generation, neighborhood structure, and search strategy for solving the TSP effectively.
 
 Link to the source code:
 
