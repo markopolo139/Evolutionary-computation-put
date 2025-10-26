@@ -8,12 +8,12 @@
 points_file   = INSTANCE . '_points_' . METHOD . '.csv'
 solution_file = INSTANCE . '_solution_' . METHOD . '.csv'
 output_file   = INSTANCE . '_solution_' . METHOD . '.png'
-plot_title    = 'Solution for ' . INSTANCE . ' using method: ' . METHOD
+# plot_title    = 'Solution for ' . INSTANCE . ' using method: ' . METHOD
 
 set terminal pngcairo size 1000,450 enhanced font 'Verdana,10'
 set output output_file
 
-set title plot_title
+# set title plot_title
 set xlabel 'X'
 set ylabel 'Y'
 set key outside

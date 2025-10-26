@@ -10,6 +10,7 @@
 #include <numeric>
 #include <cmath>
 #include <map>
+#include <functional>
 
 struct Point {
     int x, y, cost;
