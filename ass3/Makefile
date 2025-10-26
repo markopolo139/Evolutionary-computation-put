@@ -22,3 +22,7 @@ main: main.cpp
 
 clean:
 	rm -v main $(TARGETS) $(foreach prob,$(PROBLEMS),$(patsubst %,$(prob)_points_%.csv,$(METHODS))) $(foreach prob,$(PROBLEMS),$(patsubst %,$(prob)_solution_%.csv,$(METHODS)))
+
+TEX_SRCS := $(wildcard *.tex)
+main.pdf: $(TEX_SRCS) $(TARGETS)
+	pdflatex main.tex
