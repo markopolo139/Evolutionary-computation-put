@@ -12,6 +12,7 @@
 #include <map>
 #include <functional>
 #include <chrono>
+#include <unordered_set>
 
 struct Point {
     int x, y, cost;
@@ -164,7 +165,7 @@ inline void calculate_statistics(const Points& points, const DistanceMatrix& dis
     std::cout << "Method: " << method << std::endl;
     std::cout << "Scores: " << avg << " (" << min << " - " << max << ")" << std::endl;
 #else
-    std::cout << method << " & " << min << " & " << avg << " & " << max << " \\";
+    std::cout << method << " & " << min << " & " << avg << " & " << max << " \";
 #endif
 
     if (best.has_value())
@@ -259,9 +260,11 @@ Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& di
     return solution;
 }
 
+using CandidateList = std::vector<std::vector<int>>;
+
 inline auto calculate_candidate_list(const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int num_candidates) {
     int num_nodes = distance_mat.size();
-    std::vector<std::vector<int>> candidate_list(num_nodes);
+    CandidateList candidate_list(num_nodes);
 
     for (int i = 0; i < num_nodes; ++i) {
         std::vector<std::pair<int, int>> sorted_neighbors;
@@ -281,91 +284,83 @@ inline auto calculate_candidate_list(const DistanceMatrix& distance_mat, const s
     return candidate_list;
 }
 
-inline bool is_candidate(int u, int v, const std::vector<std::vector<int>>& candidate_list) {
-    const auto& u_candidates = candidate_list.at(u);
-    if (std::find(u_candidates.begin(), u_candidates.end(), v) != u_candidates.end()) {
-        return true;
-    }
-    
-    const auto& v_candidates = candidate_list.at(v);
-    if (std::find(v_candidates.begin(), v_candidates.end(), u) != v_candidates.end()) {
-        return true;
-    }
-
-    return false;
-}
-
-Solution local_search_candidate_moves(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const std::vector<std::vector<int>>& candidate_list, int max_steps = 1000) {
+Solution local_search_candidate_moves(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const CandidateList& candidate_list, int max_steps = 1000) {
     bool improvement = true;
     int steps = 0;
+    std::vector<int> solution_pos(distance_mat.size(), -1);
+
     while (improvement && steps < max_steps) {
         improvement = false;
         steps++;
         int best_delta = 0;
         std::function<void()> best_move;
 
-        // Intra-route moves (edge exchange)
-        for (size_t i = 0; i < solution.size(); ++i) {
-            for (size_t j = i + 1; j < solution.size(); ++j) {
-                int u1 = solution[i];
-                int v1 = solution[(i + 1) % solution.size()];
-                int u2 = solution[j];
-                int v2 = solution[(j + 1) % solution.size()];
-                if (v1 == u2 || u1 == v2) continue;
+        for(size_t i=0; i<solution.size(); ++i) solution_pos[solution[i]] = i;
 
-                if (!is_candidate(u1, u2, candidate_list) && !is_candidate(v1, v2, candidate_list)) {
-                    continue;
-                }
+        // Intra-route moves (2-opt based on candidate edges)
+        for (size_t i = 0; i < solution.size(); ++i) {
+            int u1 = solution[i];
+            int v1 = solution[(i + 1) % solution.size()];
+
+            for (int u2 : candidate_list[u1]) {
+                int u2_pos = solution_pos[u2];
+                if (u2_pos == -1) continue; // u2 is not in the solution
+
+                int v2 = solution[(u2_pos + 1) % solution.size()];
+                if (v1 == u2 || u1 == v2) continue;
 
                 int delta = distance_mat[u1][u2] + distance_mat[v1][v2] -
                             (distance_mat[u1][v1] + distance_mat[u2][v2]);
 
                 if (delta < best_delta) {
                     best_delta = delta;
-                    best_move = [=, &solution]() {
-                        std::reverse(solution.begin() + i + 1, solution.begin() + j + 1);
+                    best_move = [=, &solution, &solution_pos]() {
+                        size_t pos1 = i;
+                        size_t pos2 = u2_pos;
+                        if (pos1 > pos2) std::swap(pos1, pos2);
+                        std::reverse(solution.begin() + pos1 + 1, solution.begin() + pos2 + 1);
                     };
                 }
             }
         }
 
         // Inter-route moves
-        std::vector<int> non_solution_nodes;
-        std::vector<bool> in_solution(distance_mat.size(), false);
-        for (int node : solution) in_solution[node] = true;
-        for (size_t i = 0; i < distance_mat.size(); ++i) {
-            if (!in_solution[i]) non_solution_nodes.push_back(i);
-        }
-
         for (size_t i = 0; i < solution.size(); ++i) {
-            for (int non_sol_node : non_solution_nodes) {
-                int prev = (i == 0) ? solution.back() : solution[i - 1];
-                int current_node = solution[i];
-                int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                
-                if (!is_candidate(prev, non_sol_node, candidate_list) && !is_candidate(non_sol_node, next, candidate_list)) {
-                    continue;
-                }
+            int u_in = solution[i];
+            int prev = solution[(i == 0) ? solution.size() - 1 : i - 1];
+            int next = solution[(i + 1) % solution.size()];
 
-                int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                            (distance_mat[prev][current_node] + distance_mat[current_node][next] + node_costs[current_node]);
+            auto check_candidates = [&](const std::vector<int>& candidates) {
+                for (int u_out : candidates) {
+                    if (solution_pos[u_out] != -1) continue; // only consider nodes not in solution
 
-                if (delta < best_delta) {
-                    best_delta = delta;
-                    best_move = [=, &solution]() {
-                        solution[i] = non_sol_node;
-                    };
+                    int delta = (distance_mat[prev][u_out] + distance_mat[u_out][next] + node_costs[u_out]) -
+                                (distance_mat[prev][u_in] + distance_mat[u_in][next] + node_costs[u_in]);
+                    
+                    if (delta < best_delta) {
+                        best_delta = delta;
+                        best_move = [=, &solution]() {
+                            solution[i] = u_out;
+                        };
+                    }
                 }
-            }
+            };
+
+            check_candidates(candidate_list[prev]);
+            check_candidates(candidate_list[next]);
         }
+
 
         if (best_move) {
             best_move();
             improvement = true;
         }
+        
+        for(int node : solution) solution_pos[node] = -1;
     }
     return solution;
 }
+
 
 inline auto generate_random_solution(int solution_length, int points_length, auto& random_engine) {
     Solution solution(points_length);
