@@ -14,7 +14,7 @@
 \usepackage{algpseudocode}
 \usepackage{amsmath}
 
-\title{Evolutionary Computation - Assignment 3}
+\title{Evolutionary Computation - Assignment 4}
 \author{
   Patryk Janiak\\
   \texttt{156053}
@@ -53,17 +53,19 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \section{Conclusions}
 
-The local search algorithms, particularly those employing a greedy initial solution, demonstrate a significant improvement over simple constructive heuristics. The quality of the starting solution is crucial, as evidenced by the consistently better performance of methods with a greedy start compared to a random start.
+Two local search algorithms were implemented and compared: `ls\_steepest\_edges\_random` and `ls\_candidate\_random`. Both algorithms start with a random initial solution.
 
-Among the neighborhood structures, the edge-based neighborhood (2-opt) proves to be more effective and efficient than the node-based neighborhood. This is reflected in both the solution quality and the computation times.
+The `ls\_steepest\_edges\_random` algorithm explores the entire neighborhood of 2-opt moves and inter-route swaps in a steepest descent manner. In contrast, the `ls\_candidate\_random` algorithm utilizes a candidate list to prune the search space, only considering moves involving nearby nodes. This pruning is intended to speed up the search process.
 
-The `ls\_steepest\_edges\_greedy` method stands out as the most effective algorithm, achieving the best scores for both TSPA and TSPB instances while also being one of the fastest. This suggests that a steepest search strategy combined with an edge-based neighborhood and a good initial solution is a powerful combination for this problem.
+From the results, we can observe that `ls\_steepest\_edges\_random` consistently finds better solutions than `ls\_candidate\_random` for both TSPA and TSPB instances. This suggests that the pruning strategy of the candidate moves approach, while faster, may be too aggressive and cause the search to miss promising regions of the solution space.
 
-In general, the results highlight the importance of a well-chosen combination of initial solution generation, neighborhood structure, and search strategy for solving the TSP effectively.
+The `ls\_candidate\_random` is faster than the `ls\_steepest\_edges\_random` method. This is expected, as the candidate list significantly reduces the number of moves to evaluate in each iteration.
+
+In conclusion, for this particular problem, the trade-off between search speed and solution quality favors the more exhaustive `ls\_steepest\_edges\_random` approach. While the candidate moves strategy offers a significant speed-up, it comes at the cost of solution quality.
 
 Link to the source code:
 
-\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass3}
+\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass4}
 
 The best solutions were checked with the provided solution checker.
 
