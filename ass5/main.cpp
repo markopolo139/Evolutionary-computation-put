@@ -196,12 +196,10 @@ inline void calculate_and_print_time_statistics(const std::vector<std::chrono::d
 }
 
 // SOLUTIONS
-Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, int max_steps = 10000) {
+Solution local_search_steepest_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
     bool improvement = true;
-    int steps = 0;
-    while (improvement && steps < max_steps) {
+    while (improvement) {
         improvement = false;
-        steps++;
         int best_delta = 0;
         std::function<void()> best_move;
 
