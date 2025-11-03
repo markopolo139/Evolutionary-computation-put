@@ -325,28 +325,19 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
     std::vector<bool> in_solution_flags(distance_mat.size(), false);
     std::vector<int> non_solution_nodes;
 
-    auto update_solution_membership = [&]() {
-        non_solution_nodes.clear();
-        std::fill(in_solution_flags.begin(), in_solution_flags.end(), false);
-        std::fill(pos.begin(), pos.end(), -1);
-        for(size_t i = 0; i < solution.size(); ++i) {
-            in_solution_flags[solution[i]] = true;
-            pos[solution[i]] = i;
-        }
-        for (size_t i = 0; i < distance_mat.size(); ++i) {
-            if (!in_solution_flags[i]) {
-                non_solution_nodes.push_back(i);
-            }
-        }
-    };
-
     // Initial population of LM
-    {
-        update_solution_membership();
-        for (size_t i = 0; i < solution.size(); ++i) {
-            generate_intra_route_moves_for_node(i, solution, pos, distance_mat, lm);
-            generate_inter_route_moves_for_solution_node(i, solution, non_solution_nodes, distance_mat, node_costs, lm);
+    for(size_t i = 0; i < solution.size(); ++i) {
+        in_solution_flags[solution[i]] = true;
+        pos[solution[i]] = i;
+    }
+    for (size_t i = 0; i < distance_mat.size(); ++i) {
+        if (!in_solution_flags[i]) {
+            non_solution_nodes.push_back(i);
         }
+    }
+    for (size_t i = 0; i < solution.size(); ++i) {
+        generate_intra_route_moves_for_node(i, solution, pos, distance_mat, lm);
+        generate_inter_route_moves_for_solution_node(i, solution, non_solution_nodes, distance_mat, node_costs, lm);
     }
 
     std::sort(lm.begin(), lm.end());
@@ -380,7 +371,9 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
                     dirty_nodes.push_back(solution[(idx2 + 1) % solution.size()]);
                     
                     std::reverse(solution.begin() + idx1 + 1, solution.begin() + idx2 + 1);
-                    update_solution_membership();
+                    for(size_t i = idx1 + 1; i <= idx2; ++i) {
+                        pos[solution[i]] = i;
+                    }
                 } else { // INTER_ROUTE_NODE_EXCHANGE
                     int idx_sol_node = pos[move.n1];
                     int old_node = move.n1;
@@ -392,7 +385,12 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
                     dirty_nodes.push_back(solution[(idx_sol_node + 1) % solution.size()]);
 
                     solution[idx_sol_node] = new_node;
-                    update_solution_membership();
+                    pos[old_node] = -1;
+                    pos[new_node] = idx_sol_node;
+                    in_solution_flags[old_node] = false;
+                    in_solution_flags[new_node] = true;
+                    non_solution_nodes.erase(std::remove(non_solution_nodes.begin(), non_solution_nodes.end(), new_node), non_solution_nodes.end());
+                    non_solution_nodes.push_back(old_node);
                 }
 
                 applied_move = true;
