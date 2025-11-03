@@ -274,57 +274,80 @@ struct Move {
     }
 };
 
-int find_node_idx(const Solution& solution, int node) {
-    for (size_t i = 0; i < solution.size(); ++i) {
-        if (solution[i] == node) {
-            return i;
+void generate_intra_route_moves_for_node(int u1_idx, const Solution& solution, const std::vector<int>& pos, const DistanceMatrix& distance_mat, std::vector<Move>& lm) {
+    if (u1_idx < 0 || u1_idx >= solution.size()) return;
+    int u1 = solution[u1_idx];
+    int v1 = solution[(u1_idx + 1) % solution.size()];
+
+    for (size_t j_idx = u1_idx + 1; j_idx < solution.size(); ++j_idx) {
+        int u2 = solution[j_idx];
+        int v2 = solution[(j_idx + 1) % solution.size()];
+        if (v1 == u2 || u1 == v2) continue;
+
+        int delta = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
+        if (delta < 0) {
+            lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta, u1, v1, u2, v2});
         }
     }
-    return -1;
+}
+
+void generate_inter_route_moves_for_solution_node(int u_idx, const Solution& solution, const std::vector<int>& non_solution_nodes, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, std::vector<Move>& lm) {
+    if (u_idx < 0 || u_idx >= solution.size()) return;
+    
+    int u = solution[u_idx];
+    int prev = solution[(u_idx == 0) ? solution.size() - 1 : u_idx - 1];
+    int next = solution[(u_idx + 1) % solution.size()];
+
+    for (int v : non_solution_nodes) {
+        int delta = (distance_mat[prev][v] + distance_mat[v][next] + node_costs[v]) -
+                    (distance_mat[prev][u] + distance_mat[u][next] + node_costs[u]);
+        if (delta < 0) {
+            lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, u, v, 0, 0});
+        }
+    }
+}
+
+void generate_inter_route_moves_for_non_solution_node(int v, const Solution& solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, std::vector<Move>& lm) {
+    for (size_t u_idx = 0; u_idx < solution.size(); ++u_idx) {
+        int u = solution[u_idx];
+        int prev = solution[(u_idx == 0) ? solution.size() - 1 : u_idx - 1];
+        int next = solution[(u_idx + 1) % solution.size()];
+
+        int delta = (distance_mat[prev][v] + distance_mat[v][next] + node_costs[v]) -
+                    (distance_mat[prev][u] + distance_mat[u][next] + node_costs[u]);
+        if (delta < 0) {
+            lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, u, v, 0, 0});
+        }
+    }
 }
 
 Solution local_search_improving_moves_list(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
     std::vector<Move> lm;
+    std::vector<int> pos(distance_mat.size(), -1);
+    std::vector<bool> in_solution_flags(distance_mat.size(), false);
+    std::vector<int> non_solution_nodes;
+
+    auto update_solution_membership = [&]() {
+        non_solution_nodes.clear();
+        std::fill(in_solution_flags.begin(), in_solution_flags.end(), false);
+        std::fill(pos.begin(), pos.end(), -1);
+        for(size_t i = 0; i < solution.size(); ++i) {
+            in_solution_flags[solution[i]] = true;
+            pos[solution[i]] = i;
+        }
+        for (size_t i = 0; i < distance_mat.size(); ++i) {
+            if (!in_solution_flags[i]) {
+                non_solution_nodes.push_back(i);
+            }
+        }
+    };
 
     // Initial population of LM
     {
-        // Intra-route moves
+        update_solution_membership();
         for (size_t i = 0; i < solution.size(); ++i) {
-            for (size_t j = i + 1; j < solution.size(); ++j) {
-                int u1 = solution[i];
-                int v1 = solution[(i + 1) % solution.size()];
-                int u2 = solution[j];
-                int v2 = solution[(j + 1) % solution.size()];
-                if (v1 == u2 || u1 == v2) continue;
-
-                int delta = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
-                if (delta < 0) {
-                    lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta, u1, v1, u2, v2});
-                }
-            }
-        }
-
-        // Inter-route moves
-        std::vector<bool> in_solution(distance_mat.size(), false);
-        for (int node : solution) in_solution[node] = true;
-        std::vector<int> non_solution_nodes;
-        for (size_t i = 0; i < distance_mat.size(); ++i) {
-            if (!in_solution[i]) non_solution_nodes.push_back(i);
-        }
-
-        for (size_t i = 0; i < solution.size(); ++i) {
-            for (int non_sol_node : non_solution_nodes) {
-                int prev = (i == 0) ? solution.back() : solution[i - 1];
-                int current = solution[i];
-                int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                
-                int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                            (distance_mat[prev][current] + distance_mat[current][next] + node_costs[current]);
-
-                if (delta < 0) {
-                    lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, current, non_sol_node, 0, 0});
-                }
-            }
+            generate_intra_route_moves_for_node(i, solution, pos, distance_mat, lm);
+            generate_inter_route_moves_for_solution_node(i, solution, non_solution_nodes, distance_mat, node_costs, lm);
         }
     }
 
@@ -333,89 +356,81 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
     while (true) {
         bool applied_move = false;
         for (auto it = lm.begin(); it != lm.end(); ++it) {
-            Move& move = *it;
+            const Move& move = *it;
             bool is_valid = false;
 
             if (move.type == INTRA_ROUTE_EDGE_EXCHANGE) {
-                int idx1 = find_node_idx(solution, move.n1);
-                int idx2 = find_node_idx(solution, move.n3);
+                int idx1 = pos[move.n1];
+                int idx2 = pos[move.n3];
                 if (idx1 != -1 && idx2 != -1 && solution[(idx1 + 1) % solution.size()] == move.n2 && solution[(idx2 + 1) % solution.size()] == move.n4) {
                     is_valid = true;
                 }
             } else { // INTER_ROUTE_NODE_EXCHANGE
-                int idx_sol_node = find_node_idx(solution, move.n1);
-                int idx_non_sol_node = find_node_idx(solution, move.n2);
-                if (idx_sol_node != -1 && idx_non_sol_node == -1) {
+                if (pos[move.n1] != -1 && pos[move.n2] == -1) {
                     is_valid = true;
                 }
             }
 
             if (is_valid) {
-                // Apply the move
+                std::vector<int> dirty_nodes;
                 if (move.type == INTRA_ROUTE_EDGE_EXCHANGE) {
-                    int idx1 = find_node_idx(solution, move.n1);
-                    int idx2 = find_node_idx(solution, move.n3);
+                    int idx1 = pos[move.n1];
+                    int idx2 = pos[move.n3];
                     if (idx1 > idx2) std::swap(idx1, idx2);
+
+                    for(int i = idx1; i <= idx2; ++i) dirty_nodes.push_back(solution[i]);
+                    dirty_nodes.push_back(solution[(idx2 + 1) % solution.size()]);
+                    
                     std::reverse(solution.begin() + idx1 + 1, solution.begin() + idx2 + 1);
+                    update_solution_membership();
                 } else { // INTER_ROUTE_NODE_EXCHANGE
-                    int idx_sol_node = find_node_idx(solution, move.n1);
-                    solution[idx_sol_node] = move.n2;
+                    int idx_sol_node = pos[move.n1];
+                    int old_node = move.n1;
+                    int new_node = move.n2;
+                    
+                    dirty_nodes.push_back(old_node);
+                    dirty_nodes.push_back(new_node);
+                    dirty_nodes.push_back(solution[(idx_sol_node == 0) ? solution.size() - 1 : idx_sol_node - 1]);
+                    dirty_nodes.push_back(solution[(idx_sol_node + 1) % solution.size()]);
+
+                    solution[idx_sol_node] = new_node;
+                    update_solution_membership();
                 }
 
                 applied_move = true;
                 lm.erase(it);
 
-                // In a real implementation, we would intelligently update the move list (lm).
-                // This is complex, so we will re-generate it for simplicity and correctness for now.
-                {
-                    lm.clear();
-                    // Intra-route moves
-                    for (size_t i = 0; i < solution.size(); ++i) {
-                        for (size_t j = i + 1; j < solution.size(); ++j) {
-                            int u1 = solution[i];
-                            int v1 = solution[(i + 1) % solution.size()];
-                            int u2 = solution[j];
-                            int v2 = solution[(j + 1) % solution.size()];
-                            if (v1 == u2 || u1 == v2) continue;
-
-                            int delta = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
-                            if (delta < 0) {
-                                lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta, u1, v1, u2, v2});
-                            }
-                        }
+                lm.erase(std::remove_if(lm.begin(), lm.end(), [&](const Move& m) {
+                    for (int dirty_node : dirty_nodes) {
+                        if (m.n1 == dirty_node || m.n2 == dirty_node || m.n3 == dirty_node || m.n4 == dirty_node) return true;
                     }
+                    return false;
+                }), lm.end());
 
-                    // Inter-route moves
-                    std::vector<bool> in_solution(distance_mat.size(), false);
-                    for (int node : solution) in_solution[node] = true;
-                    std::vector<int> non_solution_nodes;
-                    for (size_t i = 0; i < distance_mat.size(); ++i) {
-                        if (!in_solution[i]) non_solution_nodes.push_back(i);
-                    }
+                std::vector<bool> processed_dirty(distance_mat.size(), false);
+                for (int dirty_node : dirty_nodes) {
+                    if(processed_dirty[dirty_node]) continue;
+                    processed_dirty[dirty_node] = true;
 
-                    for (size_t i = 0; i < solution.size(); ++i) {
-                        for (int non_sol_node : non_solution_nodes) {
-                            int prev = (i == 0) ? solution.back() : solution[i - 1];
-                            int current = solution[i];
-                            int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
-                            
-                            int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                                        (distance_mat[prev][current] + distance_mat[current][next] + node_costs[current]);
-
-                            if (delta < 0) {
-                                lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, current, non_sol_node, 0, 0});
-                            }
-                        }
+                    if (in_solution_flags[dirty_node]) {
+                        int idx = pos[dirty_node];
+                        generate_intra_route_moves_for_node(idx, solution, pos, distance_mat, lm);
+                        generate_inter_route_moves_for_solution_node(idx, solution, non_solution_nodes, distance_mat, node_costs, lm);
+                        
+                        int prev_idx = (idx == 0) ? solution.size() - 1 : idx - 1;
+                        generate_intra_route_moves_for_node(prev_idx, solution, pos, distance_mat, lm);
+                    } else {
+                        generate_inter_route_moves_for_non_solution_node(dirty_node, solution, distance_mat, node_costs, lm);
                     }
                 }
+                
                 std::sort(lm.begin(), lm.end());
-
-                break; // Restart scan from the beginning of the updated list
+                break; 
             }
         }
 
         if (!applied_move) {
-            break; // No valid moves found in the list, exit.
+            break;
         }
     }
 
