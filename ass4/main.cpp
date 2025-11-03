@@ -342,27 +342,40 @@ Solution local_search_candidate_moves(Solution solution, const DistanceMatrix& d
 
         for (size_t i = 0; i < solution.size(); ++i) {
             int current_node = solution[i];
-            int prev = (i == 0) ? solution.back() : solution[i - 1];
-            int next = (i == solution.size() - 1) ? solution.front() : solution[i + 1];
 
-            std::vector<int> candidates_to_check;
-            candidates_to_check.insert(candidates_to_check.end(), candidate_list[prev].begin(), candidate_list[prev].end());
-            if(candidate_list.size() > next)
-                candidates_to_check.insert(candidates_to_check.end(), candidate_list[next].begin(), candidate_list[next].end());
-            std::sort(candidates_to_check.begin(), candidates_to_check.end());
-            candidates_to_check.erase(std::unique(candidates_to_check.begin(), candidates_to_check.end()), candidates_to_check.end());
+            for (int candidate_node : candidate_list[current_node]) {
+                if (in_solution[candidate_node]) continue;
 
+                // Move 1: Exchange with previous node
+                size_t prev_idx = (i == 0) ? solution.size() - 1 : i - 1;
+                int prev_node = solution[prev_idx];
+                size_t prev_of_prev_idx = (prev_idx == 0) ? solution.size() - 1 : prev_idx - 1;
+                int prev_of_prev_node = solution[prev_of_prev_idx];
+                
+                int delta1 = (distance_mat[prev_of_prev_node][candidate_node] + distance_mat[candidate_node][current_node] + node_costs[candidate_node]) -
+                             (distance_mat[prev_of_prev_node][prev_node] + distance_mat[prev_node][current_node] + node_costs[prev_node]);
 
-            for (int non_sol_node : candidates_to_check) {
-                if (in_solution[non_sol_node]) continue;
-
-                int delta = (distance_mat[prev][non_sol_node] + distance_mat[non_sol_node][next] + node_costs[non_sol_node]) -
-                            (distance_mat[prev][current_node] + distance_mat[current_node][next] + node_costs[current_node]);
-
-                if (delta < best_delta) {
-                    best_delta = delta;
+                if (delta1 < best_delta) {
+                    best_delta = delta1;
                     best_move = [=, &solution]() {
-                        solution[i] = non_sol_node;
+                        solution[prev_idx] = candidate_node;
+                    };
+                }
+
+                // Move 2: Exchange with next node
+                size_t next_idx = (i + 1) % solution.size();
+                if (prev_idx == next_idx) continue;
+                int next_node = solution[next_idx];
+                size_t next_of_next_idx = (next_idx + 1) % solution.size();
+                int next_of_next_node = solution[next_of_next_idx];
+
+                int delta2 = (distance_mat[current_node][candidate_node] + distance_mat[candidate_node][next_of_next_node] + node_costs[candidate_node]) -
+                             (distance_mat[current_node][next_node] + distance_mat[next_node][next_of_next_node] + node_costs[next_node]);
+
+                if (delta2 < best_delta) {
+                    best_delta = delta2;
+                    best_move = [=, &solution]() {
+                        solution[next_idx] = candidate_node;
                     };
                 }
             }
