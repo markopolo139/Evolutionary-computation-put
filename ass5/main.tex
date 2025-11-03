@@ -1,0 +1,72 @@
+\documentclass{article}
+
+\usepackage[english]{babel}
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{ragged2e}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+
+\title{Evolutionary Computation - Assignment 4}
+\author{
+  Patryk Janiak\\
+  \texttt{156053}
+  \and
+  Marek Seget\\
+  \texttt{156042}
+}
+
+\begin{document}
+\maketitle
+
+\section{Problem description}
+We are given three columns of integers with a row for each node. The first two columns contain x
+and y coordinates of the node positions in a plane. The third column contains node costs. The goal is
+to select exactly 50\% of the nodes (if the number of nodes is odd we round the number of nodes to
+be selected up) and form a Hamiltonian cycle (closed path) through this set of nodes such that the
+sum of the total length of the path plus the total cost of the selected nodes is minimized.
+
+\input{algorithms.tex}
+
+\section{Results}
+
+\input{scores.tex}
+
+\input{times.tex}
+
+\subsection{TSPA.csv}
+
+\input{TSPA.tex}
+
+\subsection{TSPB.csv}
+
+\input{TSPB.tex}
+
+\newpage
+
+\section{Conclusions}
+
+Two local search algorithms were implemented and compared: `ls\_steepest\_edges\_random` and `ls\_candidate\_random`. Both algorithms start with a random initial solution.
+
+The `ls\_steepest\_edges\_random` algorithm explores the entire neighborhood of 2-opt moves and inter-route swaps in a steepest descent manner. In contrast, the `ls\_candidate\_random` algorithm utilizes a candidate list to prune the search space, only considering moves involving nearby nodes. This pruning is intended to speed up the search process.
+
+From the results, we can observe that `ls\_steepest\_edges\_random` consistently finds better solutions than `ls\_candidate\_random` for both TSPA and TSPB instances. This suggests that the pruning strategy of the candidate moves approach, while faster, may be too aggressive and cause the search to miss promising regions of the solution space.
+
+The `ls\_candidate\_random` is faster than the `ls\_steepest\_edges\_random` method. This is expected, as the candidate list significantly reduces the number of moves to evaluate in each iteration.
+
+In conclusion, for this particular problem, the trade-off between search speed and solution quality favors the more exhaustive `ls\_steepest\_edges\_random` approach. While the candidate moves strategy offers a significant speed-up, it comes at the cost of solution quality.
+
+Link to the source code:
+
+\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass4}
+
+The best solutions were checked with the provided solution checker.
+
+\end{document}
