@@ -12,6 +12,7 @@
 #include <map>
 #include <functional>
 #include <chrono>
+#include <deque>
 
 struct Point {
     int x, y, cost;
@@ -21,6 +22,7 @@ using Points = std::vector<Point>;
 using DistanceMatrix = std::vector<std::vector<int>>;
 using Solution = std::vector<int>;
 using Solutions = std::vector<Solution>;
+using NeighborList = std::vector<std::vector<int>>;
 
 inline auto read_points(auto& input) {
     Points points;
@@ -94,6 +96,21 @@ inline auto calculate_distance_matrix(const Points& points) {
     }
 
     return distance_mat;
+}
+
+inline auto build_neighbor_lists(const DistanceMatrix& distance_mat) {
+    NeighborList neighbors(distance_mat.size());
+    std::vector<int> p(distance_mat.size());
+    std::iota(p.begin(), p.end(), 0);
+
+    for (size_t i = 0; i < distance_mat.size(); ++i) {
+        std::sort(p.begin(), p.end(), [&](int a, int b) {
+            return distance_mat[i][a] < distance_mat[i][b];
+        });
+        neighbors[i] = p;
+        neighbors[i].erase(std::remove(neighbors[i].begin(), neighbors[i].end(), i), neighbors[i].end());
+    }
+    return neighbors;
 }
 
 #ifndef DONT_PRINT_LATEX
@@ -273,24 +290,43 @@ struct Move {
 };
 
 void generate_intra_route_moves_for_node(int u1_idx, const Solution& solution, const std::vector<int>& pos, const DistanceMatrix& distance_mat, std::vector<Move>& lm) {
-    if (u1_idx < 0 || u1_idx >= solution.size()) return;
+    if (u1_idx < 0 || u1_idx >= solution.size()) return; 
+    
     int u1 = solution[u1_idx];
     int v1 = solution[(u1_idx + 1) % solution.size()];
+    int p1_idx = (u1_idx == 0) ? solution.size() - 1 : u1_idx - 1;
+    int p1 = solution[p1_idx];
 
     for (size_t j_idx = u1_idx + 1; j_idx < solution.size(); ++j_idx) {
         int u2 = solution[j_idx];
         int v2 = solution[(j_idx + 1) % solution.size()];
-        if (v1 == u2 || u1 == v2) continue;
 
-        int delta = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
-        if (delta < 0) {
-            lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta, u1, v1, u2, v2});
+        // Forward move: break (u1, v1) and (u2, v2)
+        int delta_fwd = std::numeric_limits<int>::max();
+        if (v1 != u2 && u1 != v2) {
+            delta_fwd = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
+        }
+
+        // Backward move: break (p1, u1) and (u2, v2)
+        int delta_bwd = std::numeric_limits<int>::max();
+        if (p1 != u2 && u1 != v2) {
+            delta_bwd = distance_mat[p1][u2] + distance_mat[u1][v2] - (distance_mat[p1][u1] + distance_mat[u2][v2]);
+        }
+
+        if (delta_fwd < delta_bwd) {
+            if (delta_fwd < 0) {
+                lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta_fwd, u1, v1, u2, v2});
+            }
+        } else {
+            if (delta_bwd < 0) {
+                lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta_bwd, p1, u1, u2, v2});
+            }
         }
     }
 }
 
 void generate_inter_route_moves_for_solution_node(int u_idx, const Solution& solution, const std::vector<int>& non_solution_nodes, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, std::vector<Move>& lm) {
-    if (u_idx < 0 || u_idx >= solution.size()) return;
+    if (u_idx < 0 || u_idx >= solution.size()) return; 
     
     int u = solution[u_idx];
     int prev = solution[(u_idx == 0) ? solution.size() - 1 : u_idx - 1];
@@ -366,10 +402,10 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
                     int idx1 = pos[move.n1];
                     int idx2 = pos[move.n3];
                     if (idx1 > idx2) std::swap(idx1, idx2);
-
+                    
                     for(int i = idx1; i <= idx2; ++i) dirty_nodes.push_back(solution[i]);
                     dirty_nodes.push_back(solution[(idx2 + 1) % solution.size()]);
-                    
+
                     std::reverse(solution.begin() + idx1 + 1, solution.begin() + idx2 + 1);
                     for(size_t i = idx1 + 1; i <= idx2; ++i) {
                         pos[solution[i]] = i;
@@ -433,6 +469,230 @@ Solution local_search_improving_moves_list(Solution solution, const DistanceMatr
     return solution;
 }
 
+void generate_intra_route_moves_for_node_neighbors(
+    int u1_idx, 
+    const Solution& solution, 
+    const std::vector<int>& pos, 
+    const DistanceMatrix& distance_mat, 
+    const NeighborList& neighbor_lists,
+    int neighbor_limit,
+    std::vector<Move>& lm) 
+{
+    if (u1_idx < 0 || u1_idx >= solution.size()) return; 
+    
+    int u1 = solution[u1_idx];
+    int v1 = solution[(u1_idx + 1) % solution.size()];
+
+    int neighbors_checked = 0;
+    for (int u2 : neighbor_lists[u1]) {
+        if (neighbors_checked++ >= neighbor_limit) break;
+
+        int u2_idx = pos[u2];
+        if (u2_idx == -1) continue;
+
+        if (u1 >= u2) continue;
+
+        int v2 = solution[(u2_idx + 1) % solution.size()];
+
+        if (v1 == u2 || u1 == v2) continue;
+
+        int delta = distance_mat[u1][u2] + distance_mat[v1][v2] -
+                    (distance_mat[u1][v1] + distance_mat[u2][v2]);
+
+        if (delta < 0) {
+            lm.push_back({INTRA_ROUTE_EDGE_EXCHANGE, delta, u1, v1, u2, v2});
+        }
+    }
+}
+
+void generate_inter_route_moves_for_solution_node_neighbors(
+    int u_idx, 
+    const Solution& solution, 
+    const std::vector<int>& pos,
+    const DistanceMatrix& distance_mat, 
+    const std::vector<int>& node_costs, 
+    const NeighborList& neighbor_lists,
+    int neighbor_limit,
+    std::vector<Move>& lm)
+{
+    if (u_idx < 0 || u_idx >= solution.size()) return; 
+    
+    int u = solution[u_idx];
+    int prev = solution[(u_idx == 0) ? solution.size() - 1 : u_idx - 1];
+    int next = solution[(u_idx + 1) % solution.size()];
+
+    std::vector<int> candidates;
+    candidates.reserve(neighbor_limit * 2);
+    
+    int neighbors_checked = 0;
+    for (int v_candidate : neighbor_lists[prev]) {
+        if (neighbors_checked++ >= neighbor_limit) break;
+        if (pos[v_candidate] == -1) {
+            candidates.push_back(v_candidate);
+        }
+    }
+
+    neighbors_checked = 0;
+    for (int v_candidate : neighbor_lists[next]) {
+        if (neighbors_checked++ >= neighbor_limit) break;
+        if (pos[v_candidate] == -1) {
+            candidates.push_back(v_candidate);
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+
+    for (int v : candidates) {
+        int delta = (distance_mat[prev][v] + distance_mat[v][next] + node_costs[v]) -
+                    (distance_mat[prev][u] + distance_mat[u][next] + node_costs[u]);
+        if (delta < 0) {
+            lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, u, v, 0, 0});
+        }
+    }
+}
+
+void generate_inter_route_moves_for_non_solution_node_neighbors(
+    int v, 
+    const Solution& solution, 
+    const std::vector<int>& pos,
+    const DistanceMatrix& distance_mat, 
+    const std::vector<int>& node_costs, 
+    const NeighborList& neighbor_lists,
+    int neighbor_limit,
+    std::vector<Move>& lm)
+{
+    int neighbors_checked = 0;
+    for (int u : neighbor_lists[v]) {
+        if (neighbors_checked++ >= neighbor_limit) break;
+
+        if (pos[u] != -1) {
+            int u_idx = pos[u];
+            int prev_u = solution[(u_idx == 0) ? solution.size() - 1 : u_idx - 1];
+            int next_u = solution[(u_idx + 1) % solution.size()];
+
+            int delta = (distance_mat[prev_u][v] + distance_mat[v][next_u] + node_costs[v]) -
+                        (distance_mat[prev_u][u] + distance_mat[u][next_u] + node_costs[u]);
+            
+            if (delta < 0) {
+                lm.push_back({INTER_ROUTE_NODE_EXCHANGE, delta, u, v, 0, 0});
+            }
+        }
+    }
+}
+
+Solution local_search_improving_moves_list_full_neighbors(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const NeighborList& neighbor_lists) {
+    std::vector<Move> lm;
+    std::vector<int> pos(distance_mat.size(), -1);
+    std::vector<bool> in_solution_flags(distance_mat.size(), false);
+    std::vector<int> non_solution_nodes;
+    const int NEIGHBOR_LIMIT = 30;
+
+    for(size_t i = 0; i < solution.size(); ++i) {
+        in_solution_flags[solution[i]] = true;
+        pos[solution[i]] = i;
+    }
+    for (size_t i = 0; i < distance_mat.size(); ++i) {
+        if (!in_solution_flags[i]) {
+            non_solution_nodes.push_back(i);
+        }
+    }
+
+    for (size_t i = 0; i < solution.size(); ++i) {
+        generate_intra_route_moves_for_node_neighbors(i, solution, pos, distance_mat, neighbor_lists, NEIGHBOR_LIMIT, lm);
+        generate_inter_route_moves_for_solution_node_neighbors(i, solution, pos, distance_mat, node_costs, neighbor_lists, NEIGHBOR_LIMIT, lm);
+    }
+
+    std::sort(lm.begin(), lm.end());
+
+    while (true) {
+        bool applied_move = false;
+        for (auto it = lm.begin(); it != lm.end(); ++it) {
+            const Move& move = *it;
+            bool is_valid = false;
+
+            if (move.type == INTRA_ROUTE_EDGE_EXCHANGE) {
+                int idx1 = pos[move.n1];
+                int idx2 = pos[move.n3];
+                if (idx1 != -1 && idx2 != -1 && solution[(idx1 + 1) % solution.size()] == move.n2 && solution[(idx2 + 1) % solution.size()] == move.n4) {
+                    is_valid = true;
+                }
+            } else { // INTER_ROUTE_NODE_EXCHANGE
+                if (pos[move.n1] != -1 && pos[move.n2] == -1) {
+                    is_valid = true;
+                }
+            }
+
+            if (is_valid) {
+                std::vector<int> dirty_nodes;
+                if (move.type == INTRA_ROUTE_EDGE_EXCHANGE) {
+                    int idx1 = pos[move.n1];
+                    int idx2 = pos[move.n3];
+                    if (idx1 > idx2) std::swap(idx1, idx2);
+                    
+                    for(int i = idx1; i <= idx2; ++i) dirty_nodes.push_back(solution[i]);
+                    dirty_nodes.push_back(solution[(idx2 + 1) % solution.size()]);
+
+                    std::reverse(solution.begin() + idx1 + 1, solution.begin() + idx2 + 1);
+                    for(size_t i = idx1 + 1; i <= idx2; ++i) {
+                        pos[solution[i]] = i;
+                    }
+                } else { // INTER_ROUTE_NODE_EXCHANGE
+                    int idx_sol_node = pos[move.n1];
+                    int old_node = move.n1;
+                    int new_node = move.n2;
+                    
+                    dirty_nodes.push_back(old_node);
+                    dirty_nodes.push_back(new_node);
+                    dirty_nodes.push_back(solution[(idx_sol_node == 0) ? solution.size() - 1 : idx_sol_node - 1]);
+                    dirty_nodes.push_back(solution[(idx_sol_node + 1) % solution.size()]);
+
+                    solution[idx_sol_node] = new_node;
+                    pos[old_node] = -1;
+                    pos[new_node] = idx_sol_node;
+                    in_solution_flags[old_node] = false;
+                    in_solution_flags[new_node] = true;
+                    non_solution_nodes.erase(std::remove(non_solution_nodes.begin(), non_solution_nodes.end(), new_node), non_solution_nodes.end());
+                    non_solution_nodes.push_back(old_node);
+                }
+
+                applied_move = true;
+                lm.erase(it);
+
+                lm.erase(std::remove_if(lm.begin(), lm.end(), [&](const Move& m) {
+                    for (int dirty_node : dirty_nodes) {
+                        if (m.n1 == dirty_node || m.n2 == dirty_node || m.n3 == dirty_node || m.n4 == dirty_node) return true;
+                    }
+                    return false;
+                }), lm.end());
+
+                std::vector<bool> processed_dirty(distance_mat.size(), false);
+                for (int dirty_node : dirty_nodes) {
+                    if(processed_dirty[dirty_node]) continue;
+                    processed_dirty[dirty_node] = true;
+
+                    if (in_solution_flags[dirty_node]) {
+                        int idx = pos[dirty_node];
+                        generate_intra_route_moves_for_node_neighbors(idx, solution, pos, distance_mat, neighbor_lists, NEIGHBOR_LIMIT, lm);
+                        generate_inter_route_moves_for_solution_node_neighbors(idx, solution, pos, distance_mat, node_costs, neighbor_lists, NEIGHBOR_LIMIT, lm);
+                    } else {
+                        generate_inter_route_moves_for_non_solution_node_neighbors(dirty_node, solution, pos, distance_mat, node_costs, neighbor_lists, NEIGHBOR_LIMIT, lm);
+                    }
+                }
+                
+                std::sort(lm.begin(), lm.end());
+                break; 
+            }
+        }
+
+        if (!applied_move) {
+            break;
+        }
+    }
+
+    return solution;
+}
+
 inline auto generate_random_solution(int solution_length, int points_length, auto& random_engine) {
     Solution solution(points_length);
     std::iota(solution.begin(), solution.end(), 0);
@@ -468,6 +728,9 @@ int main(int argc, char* argv[]) {
     auto distance_mat = calculate_distance_matrix(points);
     std::cout << "calculated the distance matrix" << std::endl;
 
+    auto neighbor_lists = build_neighbor_lists(distance_mat);
+    std::cout << "built neighbor lists" << std::endl;
+
     std::vector<int> node_costs;
     node_costs.reserve(points.size());
     for(const auto& p : points) {
@@ -502,6 +765,18 @@ int main(int argc, char* argv[]) {
         times.push_back(end - start);
     }
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_improving_moves_list_random", "ls_improving_moves_list_random");
+    calculate_and_print_time_statistics(times);
+    solutions.clear();
+    times.clear();
+    std::cout << std::endl;
+
+    for (size_t i = 0; i < 200; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+        solutions.emplace_back(local_search_improving_moves_list_full_neighbors(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs, neighbor_lists));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
+    }
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_improving_moves_list_full_neighbors_random", "ls_improving_moves_list_full_neighbors_random");
     calculate_and_print_time_statistics(times);
     solutions.clear();
     times.clear();
