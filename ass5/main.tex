@@ -13,6 +13,23 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{amsmath}
+\usepackage{listings} % To show C++ structs as context
+\usepackage{xcolor}
+\usepackage{caption}
+
+\lstdefinestyle{cppstyle}{
+    language=C++,
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{green!50!black},
+    morekeywords={MoveType, Move, Solution, DistanceMatrix},
+    tabsize=2,
+    breaklines=true,
+    frame=tb,
+    framerule=0pt
+}
 
 \title{Evolutionary Computation - Assignment 4}
 \author{
@@ -53,15 +70,15 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \section{Conclusions}
 
-Two local search algorithms were implemented and compared: `ls\_steepest\_edges\_random` and `ls\_candidate\_random`. Both algorithms start with a random initial solution.
+Two local search algorithms were implemented and compared: `ls\_steepest\_edges\_random` and `ls\_improving\_moves\_list\_random`. Both algorithms start with a random initial solution.
 
-The `ls\_steepest\_edges\_random` algorithm explores the entire neighborhood of 2-opt moves and inter-route swaps in a steepest descent manner. In contrast, the `ls\_candidate\_random` algorithm utilizes a candidate list to prune the search space, only considering moves involving nearby nodes. This pruning is intended to speed up the search process.
+The `ls\_steepest\_edges\_random` algorithm explores the entire neighborhood of 2-opt moves and inter-route swaps in a steepest descent manner. In contrast, the `ls\_improving\_moves\_list\_random` algorithm uses a list of moves and picks the first one that improves the solution. This is intended to speed up the search process.
 
-From the results, we can observe that `ls\_steepest\_edges\_random` consistently finds better solutions than `ls\_candidate\_random` for both TSPA and TSPB instances. This suggests that the pruning strategy of the candidate moves approach, while faster, may be too aggressive and cause the search to miss promising regions of the solution space.
+From the results, we can observe that `ls\_steepest\_edges\_random` consistently finds better solutions than `ls\_improving\_moves\_list\_random` for both TSPA and TSPB instances. This suggests that the greedy nature of the improving moves list approach, while faster, may be too aggressive and cause the search to get stuck in local optima and miss promising regions of the solution space.
 
-The `ls\_candidate\_random` is faster than the `ls\_steepest\_edges\_random` method. This is expected, as the candidate list significantly reduces the number of moves to evaluate in each iteration.
+The `ls\_improving\_moves\_list\_random` is faster than the `ls\_steepest\_edges\_random` method. This is expected, as it doesn't have to evaluate all possible moves in each iteration.
 
-In conclusion, for this particular problem, the trade-off between search speed and solution quality favors the more exhaustive `ls\_steepest\_edges\_random` approach. While the candidate moves strategy offers a significant speed-up, it comes at the cost of solution quality.
+In conclusion, for this particular problem, the trade-off between search speed and solution quality favors the more exhaustive `ls\_steepest\_edges\_random` approach. While the improving moves list strategy offers a significant speed-up, it comes at the cost of solution quality.
 
 Link to the source code:
 

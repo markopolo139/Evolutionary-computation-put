@@ -1,80 +1,183 @@
-\section{Local Search Algorithms}
+\section{Algorithms}
 
-The following section describes the local search algorithms used to solve the TSP instances. The 2 different methods implemented are combinations of two main local search strategies (Steepest and Candidate) and random starting solution generation.
+The algorithms operate on the following conceptual data structures, shown here in their C++ form for clarity.
 
-\subsection{Local Search Strategies}
+\begin{lstlisting}[style=cppstyle]
+enum MoveType {
+    INTRA_ROUTE_EDGE_EXCHANGE, // A 2-Opt move within a route
+    INTER_ROUTE_NODE_EXCHANGE  // Swapping a node in a route with one outside
+};
 
-Two main local search strategies were implemented: Steepest Local Search and Candidate Moves Local Search.
+struct Move {
+    MoveType type;
+    int delta; // The change in cost (negative is an improvement)
+    int n1, n2, n3, n4; // Node placeholders for the move
+};
+\end{lstlisting}
 
-\begin{algorithm}
-\caption{Steepest Local Search}
-\label{alg:steepest_ls}
+A \texttt{Solution} is treated as a list representing a single cyclic route.
+
+\subsection{Pseudocode for Move Generation}
+
+\begin{algorithm}[H]
+\caption{\texttt{GenerateIntraRouteMoves(node $u$, solution, \dots, lm)}}
+\label{alg:gen_intra}
 \begin{algorithmic}[1]
-\Require Initial solution $S$, Neighborhood structure $N(S)$
-\Ensure Optimized solution $S$
-\State $improvement \gets \text{true}$
-\While{$improvement$}
-    \State $improvement \gets \text{false}$
-    \State Find move $m^* \in N(S)$ that maximizes $-\Delta(m)$
-    \If{$\Delta(m^*) < 0$}
-        \State $S \gets \text{apply\_move}(S, m^*)$
-        \State $improvement \gets \text{true}$
+\State Let $v$ be the successor of $u$ in $solution$.
+\State \Comment{Get the first edge $(u, v)$}
+
+\For{each node $x$ in $solution$ (starting after $u$)}
+    \State Let $y$ be the successor of $x$ in $solution$.
+    \Comment{Get the second edge $(x, y)$}
+    
+    \If{$(u, v)$ and $(x, y)$ are adjacent (i.e., $v=x$ or $y=u$)}
+        \State \textbf{continue}
     \EndIf
-\EndWhile
-\State \Return $S$
+    
+    \State $cost_{current} \gets \text{dist}(u, v) + \text{dist}(x, y)$
+    \State $cost_{new} \gets \text{dist}(u, x) + \text{dist}(v, y)$
+    \State $\Delta \gets cost_{new} - cost_{current}$
+    
+    \If{$\Delta < 0$}
+        \State $move \gets \{\texttt{INTRA\_ROUTE}, \Delta, u, v, x, y\}$
+        \State Add $move$ to $lm$
+    \EndIf
+\EndFor
 \end{algorithmic}
 \end{algorithm}
 
-\begin{algorithm}
-\caption{Candidate Moves Local Search}
-\label{alg:candidate_ls}
+\begin{algorithm}[H]
+\caption{\texttt{GenerateInterRouteMovesForSolutionNode(node $u$, solution, non\_solution, \dots, lm)}}
+\label{alg:gen_inter_sol}
 \begin{algorithmic}[1]
-\Require Initial solution $S$, Neighborhood structure $N(S)$, Candidate List $C$
-\Ensure Optimized solution $S$
-\State $improvement \gets \text{true}$
-\While{$improvement$}
-    \State $improvement \gets \text{false}$
-    \State Find move $m^* \in N(S)$ that maximizes $-\Delta(m)$ where at least one node of the move is in the candidate list $C$
-    \If{$\Delta(m^*) < 0$}
-        \State $S \gets \text{apply\_move}(S, m^*)$
-        \State $improvement \gets \text{true}$
+\State Let $prev$ and $next$ be the neighbors of $u$ in $solution$.
+\State $cost_{remove} \gets \text{dist}(prev, u) + \text{dist}(u, next) + \text{cost}(u)$
+
+\For{each node $v$ \textbf{in} $non\_solution$}
+    \State $cost_{add} \gets \text{dist}(prev, v) + \text{dist}(v, next) + \text{cost}(v)$
+    \State $\Delta \gets cost_{add} - cost_{remove}$
+    
+    \If{$\Delta < 0$}
+        \State $move \gets \{\texttt{INTER\_ROUTE}, \Delta, u, v, 0, 0\}$
+        \State Add $move$ to $lm$
     \EndIf
-\EndWhile
-\State \Return $S$
+\EndFor
 \end{algorithmic}
 \end{algorithm}
 
-\newpage
+\begin{algorithm}[H]
+\caption{\texttt{GenerateInterRouteMovesForNonSolutionNode(node $v$, solution, \dots, lm)}}
+\label{alg:gen_inter_non_sol}
+\begin{algorithmic}[1]
+\For{each node $u$ \textbf{in} $solution$}
+    \State Let $prev$ and $next$ be the neighbors of $u$ in $solution$.
+    
+    \State $cost_{remove} \gets \text{dist}(prev, u) + \text{dist}(u, next) + \text{cost}(u)$
+    \State $cost_{add} \gets \text{dist}(prev, v) + \text{dist}(v, next) + \text{cost}(v)$
+    \State $\Delta \gets cost_{add} - cost_{remove}$
+    
+    \If{$\Delta < 0$}
+        \State $move \gets \{\texttt{INTER\_ROUTE}, \Delta, u, v, 0, 0\}$
+        \State Add $move$ to $lm$
+    \EndIf
+\EndFor
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Neighborhood Structures}
+\subsection{Pseudocode for Helper Functions}
 
-The neighborhood of a solution is defined by the set of possible moves that can be applied to it. Two types of neighborhood structures were used:
+\begin{algorithm}[H]
+\caption{\texttt{CheckMoveValidity(move, solution, SolutionNodes)}}
+\label{alg:check_valid}
+\begin{algorithmic}[1]
+\If{$move.type = \texttt{INTRA\_ROUTE}$}
+    \State $u \gets move.n1$, $v \gets move.n2$
+    \State $x \gets move.n3$, $y \gets move.n4$
+    \If{$u$, $v$, $x$, $y$ are all \textbf{in} $SolutionNodes$}
+        \State \Comment{Check if the edges still exist as specified}
+        \If{the successor of $u$ in $solution$ is $v$ \textbf{and} the successor of $x$ in $solution$ is $y$}
+            \State \Return \textbf{true}
+        \EndIf
+    \EndIf
+\ElsIf{$move.type = \texttt{INTER\_ROUTE}$}
+    \State $u \gets move.n1$ (node to remove)
+    \State $v \gets move.n2$ (node to add)
+    \State \Comment{Check if $u$ is still in the solution and $v$ is still out}
+    \If{$u$ is \textbf{in} $SolutionNodes$ \textbf{and} $v$ is \textbf{not in} $SolutionNodes$}
+        \State \Return \textbf{true}
+    \EndIf
+\EndIf
+\State \Return \textbf{false}
+\end{algorithmic}
+\end{algorithm}
 
-\begin{itemize}
-    \item \textbf{Edge-based Neighborhood:}
-    \begin{itemize}
-        \item \textbf{Intra-route moves:} 2-opt moves, which consist of swapping two edges in the tour.
-        \item \textbf{Inter-route moves:} Swapping any node in the solution with any node not in the solution.
-    \end{itemize}
-    \item \textbf{Candidate Moves Neighborhood:}
-    \begin{itemize}
-        \item The neighborhood is pruned by only considering moves where at least one of the nodes is in a pre-computed candidate list. The candidate list for a node $u$ contains the $k$ nearest neighbors of $u$.
-    \end{itemize}
-\end{itemize}
+\subsection{Pseudocode for Main Local Search}
 
-\subsection{Starting Solutions}
+\begin{algorithm}[H]
+\captionof{algorithm}{\texttt{LocalSearch(solution, dist\_mat, costs)}}
+\label{alg:local_search}
+\begin{algorithmic}[1]
+\State $lm \gets \text{empty list of Moves}$
+\State $SolutionNodes \gets \text{set of nodes in the solution}$
+\State $NonSolutionNodes \gets \text{set of nodes not in the solution}$
 
-Random starting solutions were used for the local search algorithms:
+\Comment{\textbf{Initial Move Generation}}
+\For{each $node$ \textbf{in} $SolutionNodes$}
+    \State \Call{GenerateIntraRouteMoves}{$node$, $solution$, \dots, $lm$}
+    \State \Call{GenerateInterRouteMovesForSolutionNode}{$node$, $solution$, $NonSolutionNodes$, \dots, $lm$}
+\EndFor
+\State Sort $lm$ by $\Delta$ (best improvement first)
 
-\begin{itemize}
-    \item \textbf{Random Start:} A random solution is generated by shuffling all available points and selecting the first half.
-\end{itemize}
+\Comment{\textbf{Main Improvement Loop}}
+\Loop
+    \State $move\_applied \gets \text{false}$
+    \For{each $move$ \textbf{in} $lm$ (from best to worst)}
+        
+        \State \Comment{Check if move is still valid given the current solution}
+        \State $is\_valid \gets$ \Call{CheckMoveValidity}{$move$, $solution$, $SolutionNodes$}
+        
+        \If{$is\_valid$}
+            \State $DirtyNodes \gets \text{empty set}$
+            
+            \Comment{\textbf{Apply the move}}
+            \If{$move.type = \texttt{INTRA\_ROUTE}$}
+                \State Add all nodes involved in the move to $DirtyNodes$
+                \State Reverse the path segment in $solution$ to apply the 2-Opt swap.
+            \Else \Comment{\texttt{INTER\_ROUTE}}
+                \State $old\_node \gets move.n1$, $new\_node \gets move.n2$
+                \State Add $old\_node$, $new\_node$, and their neighbors to $DirtyNodes$
+                \State Replace $old\_node$ with $new\_node$ in $solution$.
+                \State Update $SolutionNodes$ and $NonSolutionNodes$.
+            \EndIf
+            
+            \State $move\_applied \gets \text{true}$
+            
+            \Comment{\textbf{Update Move List}}
+            \State Remove all moves from $lm$ that involve any node in $DirtyNodes$.
+            
+            \State $ProcessedDirty \gets \text{empty set}$
+            \For{each $node$ \textbf{in} $DirtyNodes$}
+                \If{$node$ \textbf{in} $ProcessedDirty$} \textbf{continue} \EndIf
+                \State Add $node$ to $ProcessedDirty$
+                
+                \If{$node$ is now in $SolutionNodes$}
+                    \State \Call{GenerateIntraRouteMoves}{$node$ and its predecessor, \dots, $lm$}
+                    \State \Call{GenerateInterRouteMovesForSolutionNode}{$node$, \dots, $lm$}
+                \Else \Comment{$node$ is now in $NonSolutionNodes$}
+                    \State \Call{GenerateInterRouteMovesForNonSolutionNode}{$node$, \dots, $lm$}
+                \EndIf
+            \EndFor
+            
+            \State Sort $lm$ by $\Delta$ (best improvement first)
+            \State \textbf{break} \Comment{Restart search with the new best move}
+        \EndIf
+    \EndFor \Comment{End of move iteration}
+    
+    \If{\textbf{not} $move\_applied$}
+        \State \textbf{break} \Comment{No more valid improving moves found; local optimum}
+    \EndIf
+\EndLoop \Comment{End of main loop}
 
-\subsection{Implemented Methods}
-
-The 2 implemented methods are:
-
-\begin{itemize}
-    \item ls\_steepest\_edges\_random: Steepest search with an edge-based neighborhood and a random starting solution.
-    \item ls\_candidate\_random: Steepest search with a candidate moves neighborhood and a random starting solution.
-\end{itemize}
+\State \Return $solution$
+\end{algorithmic}
+\end{algorithm}
