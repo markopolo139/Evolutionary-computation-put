@@ -31,7 +31,7 @@
     framerule=0pt
 }
 
-\title{Evolutionary Computation - Assignment 4}
+\title{Evolutionary Computation - Assignment 5}
 \author{
   Patryk Janiak\\
   \texttt{156053}
@@ -70,8 +70,6 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \section{Conclusions}
 
-Two local search algorithms were implemented and compared: `ls\_steepest\_edges\_random` and `ls\_improving\_moves\_list\_random`. Both algorithms start with a random initial solution.
-
 The `ls\_steepest\_edges\_random` algorithm explores the entire neighborhood of 2-opt moves and inter-route swaps in a steepest descent manner. In contrast, the `ls\_improving\_moves\_list\_random` algorithm uses a list of moves and picks the first one that improves the solution. This is intended to speed up the search process.
 
 From the results, we can observe that `ls\_steepest\_edges\_random` consistently finds better solutions than `ls\_improving\_moves\_list\_random` for both TSPA and TSPB instances. This suggests that the greedy nature of the improving moves list approach, while faster, may be too aggressive and cause the search to get stuck in local optima and miss promising regions of the solution space.
@@ -82,7 +80,7 @@ In conclusion, for this particular problem, the trade-off between search speed a
 
 Link to the source code:
 
-\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass4}
+\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass5}
 
 The best solutions were checked with the provided solution checker.
 

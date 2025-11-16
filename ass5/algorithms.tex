@@ -23,24 +23,36 @@ A \texttt{Solution} is treated as a list representing a single cyclic route.
 \caption{\texttt{GenerateIntraRouteMoves(node $u$, solution, \dots, lm)}}
 \label{alg:gen_intra}
 \begin{algorithmic}[1]
-\State Let $v$ be the successor of $u$ in $solution$.
-\State \Comment{Get the first edge $(u, v)$}
+\State Let $v$ be the successor of $u$ in $solution$. \Comment{Edge $(u, v)$}
+\State Let $p$ be the predecessor of $u$ in $solution$. \Comment{Edge $(p, u)$}
 
 \For{each node $x$ in $solution$ (starting after $u$)}
-    \State Let $y$ be the successor of $x$ in $solution$.
-    \Comment{Get the second edge $(x, y)$}
+    \State Let $y$ be the successor of $x$ in $solution$. \Comment{Edge $(x, y)$}
     
-    \If{$(u, v)$ and $(x, y)$ are adjacent (i.e., $v=x$ or $y=u$)}
-        \State \textbf{continue}
+    \State $\Delta_{fwd} \gets \infty$
+    \If{$v \ne x$ \textbf{and} $u \ne y$} \Comment{Check forward move: break $(u,v)$ and $(x,y)$}
+        \State $cost_{current} \gets \text{dist}(u, v) + \text{dist}(x, y)$
+        \State $cost_{new} \gets \text{dist}(u, x) + \text{dist}(v, y)$
+        \State $\Delta_{fwd} \gets cost_{new} - cost_{current}$
     \EndIf
     
-    \State $cost_{current} \gets \text{dist}(u, v) + \text{dist}(x, y)$
-    \State $cost_{new} \gets \text{dist}(u, x) + \text{dist}(v, y)$
-    \State $\Delta \gets cost_{new} - cost_{current}$
-    
-    \If{$\Delta < 0$}
-        \State $move \gets \{\texttt{INTRA\_ROUTE}, \Delta, u, v, x, y\}$
-        \State Add $move$ to $lm$
+    \State $\Delta_{bwd} \gets \infty$
+    \If{$p \ne x$ \textbf{and} $u \ne y$} \Comment{Check backward move: break $(p,u)$ and $(x,y)$}
+        \State $cost_{current} \gets \text{dist}(p, u) + \text{dist}(x, y)$
+        \State $cost_{new} \gets \text{dist}(p, x) + \text{dist}(u, y)$
+        \State $\Delta_{bwd} \gets cost_{new} - cost_{current}$
+    \EndIf
+
+    \If{$\Delta_{fwd} < \Delta_{bwd}$}
+        \If{$\Delta_{fwd} < 0$}
+            \State $move \gets \{\texttt{INTRA\_ROUTE}, \Delta_{fwd}, u, v, x, y\}$
+            \State Add $move$ to $lm$
+        \EndIf
+    \Else
+        \If{$\Delta_{bwd} < 0$}
+            \State $move \gets \{\texttt{INTRA\_ROUTE}, \Delta_{bwd}, p, u, x, y\}$
+            \State Add $move$ to $lm$
+        \EndIf
     \EndIf
 \EndFor
 \end{algorithmic}

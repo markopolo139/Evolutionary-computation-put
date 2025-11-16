@@ -1,5 +1,5 @@
 PROBLEMS := TSPA TSPB
-METHODS  := ls_steepest_edges_random ls_improving_moves_list_random
+METHODS  := ls_steepest_edges_random ls_improving_moves_list_random ls_improving_moves_list_full_neighbors_random
 
 TARGETS := $(foreach prob,$(PROBLEMS),$(patsubst %,$(prob)_solution_%.png,$(METHODS)))
 
