@@ -14,7 +14,7 @@
 \usepackage{algpseudocode}
 \usepackage{amsmath}
 
-\title{Evolutionary Computation - Assignment 3}
+\title{Evolutionary Computation - Assignment 6}
 \author{
   Patryk Janiak\\
   \texttt{156053}
@@ -41,6 +41,8 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \input{times.tex}
 
+\input{ls_runs.tex}
+
 \subsection{TSPA.csv}
 
 \input{TSPA.tex}
@@ -53,17 +55,15 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \section{Conclusions}
 
-The local search algorithms, particularly those employing a greedy initial solution, demonstrate a significant improvement over simple constructive heuristics. The quality of the starting solution is crucial, as evidenced by the consistently better performance of methods with a greedy start compared to a random start.
+Both MSLS and ILS algorithms are effective in finding high-quality solutions, outperforming previous methods. ILS consistently finds better solutions than MSLS for both TSPA and TSPB instances, although the difference is more significant for TSPB.
 
-Among the neighborhood structures, the edge-based neighborhood (2-opt) proves to be more effective and efficient than the node-based neighborhood. This is reflected in both the solution quality and the computation times.
+The running times for both algorithms are comparable, with ILS being slightly slower. This is expected, as ILS performs more local search runs, which is also reflected in the results. The number of local search runs in ILS is quite high, indicating that the perturbation and local search steps are effectively exploring the solution space.
 
-The `ls\_steepest\_edges\_greedy` method stands out as the most effective algorithm, achieving the best scores for both TSPA and TSPB instances while also being one of the fastest. This suggests that a steepest search strategy combined with an edge-based neighborhood and a good initial solution is a powerful combination for this problem.
-
-In general, the results highlight the importance of a well-chosen combination of initial solution generation, neighborhood structure, and search strategy for solving the TSP effectively.
+The results suggest that the balance between intensification (local search) and diversification (perturbation) in ILS is well-suited for this problem, leading to better solutions than the repeated random-start approach of MSLS.
 
 Link to the source code:
 
-\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass3}
+\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass6}
 
 The best solutions were checked with the provided solution checker.
 

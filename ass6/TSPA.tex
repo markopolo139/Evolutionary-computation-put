@@ -1,26 +1,14 @@
-\begin{table}[H] % Use [H] from float package for \'here\' if available, otherwise use [!htbp]
+\begin{table}[H] % Use [H] from float package for 'here' if available, otherwise use [!htbp]
 \centering
 \caption{Best Achieved Solution for TSPA.csv}
-\label{tab:tsbp_best_sequence}
+\label{tab:tspa_best_sequence}
 \begin{tabular}{|p{0.25\linewidth}|p{0.75\linewidth}|} % Two columns: 25% for Method, 75% for Sequence
 \hline
 \textbf{Method} & \textbf{Best Sequence} \\
 \hline
-ls\_steepest\_nodes\_random & 81, 196, 1, 101, 100, 121, 122, 137, 89, 183, 143, 0, 68, 160, 54, 184, 149, 162, 151, 115, 46, 139, 41, 5, 42, 43, 116, 65, 59, 118, 51, 15, 55, 52, 78, 145, 165, 138, 102, 4, 10, 177, 34, 181, 18, 108, 22, 146, 159, 193, 176, 152, 2, 129, 57, 92, 179, 40, 119, 185, 106, 178, 14, 144, 62, 9, 90, 27, 164, 21, 49, 167, 97, 26, 53, 154, 135, 70, 127, 112, 123, 133, 79, 80, 37, 148, 124, 94, 63, 180, 158, 86, 75, 120, 44, 16, 171, 175, 113, 31, 81 \\
+msls & 35, 184, 43, 116, 65, 47, 131, 149, 59, 118, 51, 176, 80, 133, 151, 162, 123, 127, 70, 135, 154, 180, 53, 63, 79, 94, 26, 86, 75, 101, 1, 97, 152, 2, 129, 92, 82, 120, 44, 25, 16, 171, 175, 113, 56, 31, 78, 145, 196, 81, 90, 165, 40, 185, 57, 55, 52, 106, 178, 49, 102, 14, 144, 62, 9, 37, 148, 15, 114, 186, 137, 23, 89, 183, 143, 117, 0, 46, 115, 139, 108, 18, 22, 146, 159, 193, 41, 5, 42, 181, 34, 160, 54, 30, 177, 10, 190, 4, 112, 84, 35 \\
 \hline
-ls\_steepest\_nodes\_greedy & 108, 18, 22, 146, 159, 193, 41, 139, 68, 46, 115, 118, 59, 65, 116, 43, 42, 181, 34, 160, 184, 48, 54, 177, 10, 190, 4, 112, 127, 123, 162, 151, 133, 135, 70, 154, 180, 53, 121, 100, 26, 86, 75, 101, 1, 97, 152, 2, 120, 44, 25, 16, 171, 175, 113, 56, 31, 78, 145, 179, 92, 129, 57, 55, 52, 185, 40, 196, 81, 90, 27, 164, 95, 39, 165, 106, 178, 14, 49, 102, 144, 62, 9, 148, 124, 94, 63, 79, 80, 176, 137, 23, 186, 89, 183, 143, 0, 117, 93, 140, 108 \\
-\hline
-ls\_steepest\_edges\_random & 49, 102, 14, 144, 62, 9, 15, 186, 89, 183, 143, 0, 117, 68, 46, 115, 139, 41, 193, 159, 108, 18, 22, 146, 34, 48, 54, 177, 10, 184, 160, 181, 42, 5, 43, 116, 65, 149, 59, 118, 51, 151, 162, 123, 127, 70, 135, 154, 180, 53, 63, 79, 133, 80, 176, 137, 148, 124, 94, 152, 2, 1, 97, 26, 100, 86, 101, 75, 120, 44, 82, 129, 92, 179, 145, 78, 25, 16, 171, 175, 113, 56, 31, 157, 196, 81, 90, 27, 164, 95, 39, 165, 119, 40, 185, 57, 55, 52, 106, 178, 49 \\
-\hline
-ls\_steepest\_edges\_greedy & 75, 101, 1, 152, 97, 26, 100, 86, 53, 180, 154, 135, 70, 127, 123, 162, 151, 133, 79, 63, 94, 80, 176, 137, 148, 124, 94, 63, 79, 133, 80, 176, 51, 118, 59, 65, 116, 43, 42, 184, 35, 84, 112, 4, 190, 10, 177, 54, 48, 160, 34, 181, 146, 22, 18, 108, 69, 159, 193, 41, 139, 115, 46, 68, 140, 93, 117, 0, 143, 183, 89, 23, 137, 186, 114, 15, 148, 9, 62, 102, 144, 14, 49, 178, 106, 52, 55, 185, 40, 165, 90, 81, 196, 179, 57, 129, 92, 145, 78, 31, 56, 113, 175, 171, 16, 25, 44, 120, 2, 75 \\
-\hline
-ls\_greedy\_nodes\_random & 155, 14, 102, 135, 70, 156, 126, 123, 194, 63, 94, 128, 62, 83, 23, 76, 89, 183, 143, 170, 0, 66, 80, 45, 161, 59, 117, 36, 163, 198, 115, 60, 137, 148, 111, 124, 122, 47, 116, 105, 192, 181, 34, 146, 22, 195, 159, 193, 142, 18, 134, 199, 5, 43, 166, 30, 177, 11, 149, 24, 136, 121, 99, 189, 167, 52, 178, 106, 185, 179, 168, 56, 113, 175, 78, 145, 57, 129, 2, 1, 97, 100, 101, 120, 16, 88, 171, 98, 81, 17, 169, 119, 165, 27, 95, 58, 7, 21, 132, 144, 155 \\
-\hline
-ls\_greedy\_nodes\_greedy & 152, 97, 1, 101, 75, 86, 26, 100, 53, 180, 154, 135, 70, 127, 123, 162, 151, 133, 79, 63, 94, 80, 176, 51, 118, 59, 65, 116, 43, 42, 184, 35, 84, 112, 4, 190, 10, 177, 54, 48, 160, 34, 181, 146, 22, 18, 108, 69, 159, 193, 41, 139, 115, 46, 68, 140, 93, 117, 0, 143, 183, 89, 23, 137, 186, 114, 15, 148, 9, 62, 102, 144, 14, 49, 178, 106, 52, 55, 185, 40, 165, 90, 81, 196, 179, 57, 129, 92, 145, 78, 31, 56, 113, 175, 171, 16, 25, 44, 120, 2, 152 \\
-\hline
-ls\_greedy\_edges\_random & 120, 75, 101, 1, 2, 152, 97, 26, 86, 53, 180, 154, 135, 70, 127, 123, 162, 151, 133, 79, 63, 94, 124, 80, 176, 51, 118, 59, 149, 131, 47, 65, 116, 43, 42, 160, 184, 112, 4, 190, 10, 177, 54, 34, 181, 146, 22, 159, 18, 108, 140, 68, 139, 193, 41, 115, 46, 0, 117, 143, 183, 89, 186, 23, 137, 148, 9, 62, 144, 14, 49, 178, 106, 52, 55, 185, 165, 39, 164, 27, 90, 119, 40, 81, 196, 157, 31, 56, 113, 175, 171, 16, 78, 145, 179, 57, 92, 129, 25, 44, 120 \\
-\hline
-ls\_greedy\_edges\_greedy & 75, 101, 1, 152, 97, 26, 100, 86, 53, 180, 154, 135, 70, 127, 123, 162, 151, 133, 79, 63, 94, 80, 176, 51, 118, 59, 65, 116, 43, 42, 184, 35, 84, 112, 4, 190, 10, 177, 54, 48, 160, 34, 181, 146, 22, 18, 108, 69, 159, 193, 41, 139, 115, 46, 68, 140, 93, 117, 0, 143, 183, 89, 23, 137, 186, 114, 15, 148, 9, 62, 102, 144, 14, 49, 178, 106, 52, 55, 185, 40, 165, 90, 81, 196, 179, 57, 129, 92, 145, 78, 31, 56, 113, 175, 171, 16, 25, 44, 120, 2, 75 \\
+ils & 34, 146, 22, 18, 108, 140, 93, 117, 0, 143, 183, 89, 186, 23, 137, 176, 80, 79, 63, 94, 124, 148, 9, 62, 102, 144, 14, 49, 178, 106, 52, 55, 185, 40, 165, 90, 81, 196, 179, 57, 129, 92, 145, 78, 31, 56, 113, 175, 171, 16, 25, 44, 120, 2, 152, 97, 1, 101, 75, 86, 26, 100, 53, 180, 154, 135, 70, 127, 123, 162, 133, 151, 51, 118, 59, 115, 46, 68, 139, 41, 193, 159, 181, 42, 43, 116, 65, 149, 131, 35, 184, 84, 112, 4, 190, 10, 177, 54, 48, 160, 34 \\
 \hline
 \end{tabular}
 \end{table}
@@ -28,50 +16,12 @@ ls\_greedy\_edges\_greedy & 75, 101, 1, 152, 97, 26, 100, 86, 53, 180, 154, 135,
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_steepest_nodes_random.png}
-\caption{\label{fig:frog}ls\_steepest\_nodes\_random}
+\includegraphics[width=0.97\linewidth]{TSPA_solution_msls.png}
+\caption{\label{fig:tspa_msls}msls}
 \end{figure}
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_steepest_nodes_greedy.png}
-\caption{\label{fig:frog}ls\_steepest\_nodes\_greedy}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_steepest_edges_random.png}
-\caption{\label{fig:frog}ls\_steepest\_edges\_random}
-\end{figure}
-
-\newpage
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_steepest_edges_greedy.png}
-\caption{\label{fig:frog}ls\_steepest\_edges\_greedy}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_greedy_nodes_random.png}
-\caption{\label{fig:frog}ls\_greedy\_nodes\_random}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_greedy_nodes_greedy.png}
-\caption{\label{fig:frog}ls\_greedy\_nodes\_greedy}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_greedy_edges_random.png}
-\caption{\label{fig:frog}ls\_greedy\_edges\_random}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.97\linewidth]{TSPA_solution_ls_greedy_edges_greedy.png}
-\caption{\label{fig:frog}ls\_greedy\_edges\_greedy}
+\includegraphics[width=0.97\linewidth]{TSPA_solution_ils.png}
+\caption{\label{fig:tspa_ils}ils}
 \end{figure}

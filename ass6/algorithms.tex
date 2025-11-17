@@ -1,91 +1,118 @@
-\section{Local Search Algorithms}
 
-The following section describes the local search algorithms used to solve the TSP instances. The 8 different methods implemented are combinations of two main local search strategies (Steepest and Greedy), two different neighborhood definitions (Node-based and Edge-based), and two different starting solution generation methods (Random and Greedy Construction).
+\section{Algorithms}
+\label{sec:pseudocode}
 
-\subsection{Local Search Strategies}
-
-Two main local search strategies were implemented: Steepest Local Search and Greedy Local Search.
-
-\begin{algorithm}
-\caption{Steepest Local Search}
-\label{alg:steepest_ls}
+\begin{algorithm}[H]
+\caption{Multiple-Start Local Search (MSLS)}
+\label{alg:msls}
 \begin{algorithmic}[1]
-\Require Initial solution $S$, Neighborhood structure $N(S)$
-\Ensure Optimized solution $S$
-\State $improvement \gets \text{true}$
-\While{$improvement$}
-    \State $improvement \gets \text{false}$
-    \State Find move $m^* \in N(S)$ that maximizes $-\Delta(m)$
-    \If{$\Delta(m^*) < 0$}
-        \State $S \gets \text{apply\_move}(S, m^*)$
-        \State $improvement \gets \text{true}$
-    \EndIf
-\EndWhile
-\State \Return $S$
-\end{algorithmic}
-\end{algorithm}
-
-\begin{algorithm}
-\caption{Greedy Local Search}
-\label{alg:greedy_ls}
-\begin{algorithmic}[1]
-\Require Initial solution $S$, Neighborhood structure $N(S)$
-\Ensure Optimized solution $S$
-\State $improvement \gets \text{true}$
-\While{$improvement$}
-    \State $improvement \gets \text{false}$
-    \State Randomly shuffle the order of moves in $N(S)$
-    \For{each move $m$ in the shuffled neighborhood}
-        \If{$\Delta(m) < 0$}
-            \State $S \gets \text{apply\_move}(S, m)$
-            \State $improvement \gets \text{true}$
-            \State \textbf{break}
+\Procedure{MSLS}{maxIters, distanceMat, nodeCosts, solutionLength, pointsLength}
+    \State \texttt{bestSolution} $\gets$ \textbf{null}
+    \State \texttt{bestScore} $\gets \infty$
+    \For{$i \gets 1$ to \texttt{maxIters}}
+        \State \texttt{current} $\gets$ \Call{GenerateRandomSolution}{\texttt{solutionLength}, \texttt{pointsLength}}
+        \State \texttt{current} $\gets$ \Call{LocalSearchSteepestEdges}{\texttt{current}, \texttt{distanceMat}, \texttt{nodeCosts}}
+        \State \texttt{currentScore} $\gets$ \Call{CalculateObjective}{\texttt{current}, \texttt{distanceMat}, \texttt{nodeCosts}}
+        \If{\texttt{currentScore} < \texttt{bestScore}}
+            \State \texttt{bestScore} $\gets$ \texttt{currentScore}
+            \State \texttt{bestSolution} $\gets$ \texttt{current}
         \EndIf
     \EndFor
-\EndWhile
-\State \Return $S$
+    \State \Return \texttt{bestSolution}
+\EndProcedure
 \end{algorithmic}
 \end{algorithm}
 
-\newpage
 
-\subsection{Neighborhood Structures}
+\begin{algorithm}[H]
+\caption{Perturb (Multiple Swap)}
+\label{alg:perturb}
+\begin{algorithmic}[1]
+\Procedure{Perturb}{solution, pointsLength, perturbStrength}
+    \State \texttt{perturbedSolution} $\gets$ \texttt{solution}
+    \State \texttt{nonSolutionNodes} $\gets$ \Call{GetNodesNotIn}{\texttt{solution}, \texttt{pointsLength}}
+    
+    \If{\texttt{nonSolutionNodes} is empty}
+        \State \Return \texttt{perturbedSolution}
+    \EndIf
 
-The neighborhood of a solution is defined by the set of possible moves that can be applied to it. Two types of neighborhood structures were used:
+    \State \texttt{maxSwaps} $\gets$ \Call{min}{\texttt{perturbStrength}, \texttt{solution.size}, \texttt{nonSolutionNodes.size}}
 
-\begin{itemize}
-    \item \textbf{Node-based Neighborhood:}
-    \begin{itemize}
-        \item \textbf{Intra-route moves:} Swapping any two nodes within the solution.
-        \item \textbf{Inter-route moves:} Swapping any node in the solution with any node not in the solution.
-    \end{itemize}
-    \item \textbf{Edge-based Neighborhood:}
-    \begin{itemize}
-        \item \textbf{Intra-route moves:} 2-opt moves, which consist of swapping two edges in the tour.
-        \item \textbf{Inter-route moves:} Swapping any node in the solution with any node not in the solution.
-    \end{itemize}
-\end{itemize}
+    \For{$i \gets 1$ to \texttt{maxSwaps}}
+        \State \texttt{idxToRemove} $\gets$ \Call{RandomIndex}{\texttt{perturbedSolution.size}}
+        \State \texttt{idxToAdd} $\gets$ \Call{RandomIndex}{\texttt{nonSolutionNodes.size}}
+        
+        \State \texttt{nodeToRemove} $\gets$ \texttt{perturbedSolution[idxToRemove]}
+        \State \texttt{nodeToAdd} $\gets$ \texttt{nonSolutionNodes[idxToAdd]}
+        
+        \State \texttt{perturbedSolution[idxToRemove]} $\gets$ \texttt{nodeToAdd}
+        \State \texttt{nonSolutionNodes[idxToAdd]} $\gets$ \texttt{nodeToRemove}
+    \EndFor
+    
+    \State \Return \texttt{perturbedSolution}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Starting Solutions}
 
-Two methods were used to generate the initial solutions for the local search algorithms:
+\begin{algorithm}[H]
+\caption{Iterated Local Search (ILS)}
+\label{alg:ils}
+\begin{algorithmic}[1]
+\Procedure{IteratedLocalSearch}{stopDuration, distanceMat, nodeCosts, ...}
+    \State \texttt{startTime} $\gets$ \Call{Now}{}
+    
+    \Comment{Generate initial solution}
+    \State $x \gets$ \Call{GenerateRandomSolution}{...}
+    \State $x \gets$ \Call{LocalSearchSteepestEdges}{$x$, \texttt{distanceMat}, \texttt{nodeCosts}}
+    \State $x\_score \gets$ \Call{CalculateObjective}{$x$, \texttt{distanceMat}, \texttt{nodeCosts}}
+    
+    \State \texttt{bestSolution} $\gets x$
+    \State \texttt{bestScore} $\gets x\_score$
 
-\begin{itemize}
-    \item \textbf{Random Start:} A random solution is generated by shuffling all available points and selecting the first half.
-    \item \textbf{Greedy Start:} A solution is constructed using the \textit{Nearest Neighbor with Weighted Regret} heuristic.
-\end{itemize}
+    \Comment{Repeat until stopping condition is met}
+    \While{\Call{Now}{} - \texttt{startTime} < \texttt{stopDuration}}
+        \State $y \gets$ \Call{Perturb}{$x$, \texttt{perturbStrength}} \Comment{e.g., Multiple-Swap move}
+        \State $y \gets$ \Call{LocalSearchSteepestEdges}{$y$, \texttt{distanceMat}, \texttt{nodeCosts}}
+        \State $y\_score \gets$ \Call{CalculateObjective}{$y$, \texttt{distanceMat}, \texttt{nodeCosts}}
+        
+        \Comment{Acceptance criterion (accept if better)}
+        \If{$y\_score < x\_score$}
+            \State $x \gets y$
+            \State $x\_score \gets y\_score$
+            
+            \Comment{Update overall best solution}
+            \If{$x\_score < \texttt{bestScore}$}
+                \State \texttt{bestSolution} $\gets x$
+                \State \texttt{bestScore} $\gets x\_score$
+            \EndIf
+        \EndIf
+    \EndWhile
+    \State \Return \texttt{bestSolution}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Implemented Methods}
+\subsection{Iterated Local Search Perturbation}
+\label{sec:perturbation}
 
-The 8 implemented methods are combinations of the above strategies and structures:
+This implementation of ILS uses a "multiple swap" strategy for its perturbation step. It works by randomly swapping a fixed number of nodes (\texttt{perturbation\_strength}) currently \textit{in} the solution with an equal number of nodes \textit{not} in the solution. This is a large enough change to escape the local optimum but small enough to retain the "good" structure of the current solution as a starting point for the next search.
 
-\begin{itemize}
-    \item ls\_steepest\_nodes\_random: Steepest search with a node-based neighborhood and a random starting solution.
-    \item ls\_steepest\_nodes\_greedy: Steepest search with a node-based neighborhood and a greedy starting solution.
-    \item ls\_steepest\_edges\_random: Steepest search with an edge-based neighborhood and a random starting solution.
-    \item ls\_steepest\_edges\_greedy: Steepest search with an edge-based neighborhood and a greedy starting solution.
-    \item ls\_greedy\_nodes\_random: Greedy search with a node-based neighborhood and a random starting solution.
-    \item ls\_greedy\_nodes\_greedy: Greedy search with a node-based neighborhood and a greedy starting solution.
-    \item ls\_greedy\_edges\_random: Greedy search with an edge-based neighborhood and a random starting solution.
-    \item ls\_greedy\_edges\_greedy: Greedy search with an edge-based neighborhood and a greedy starting solution.
-\end{itemize}
+\subsection{Tuning Perturbation Strength}
+\label{sec:tuning}
+
+The effectiveness of the ILS algorithm is highly dependent on the \texttt{perturbation\_strength} parameter. An experiment was conducted to determine an optimal value for this parameter.
+
+The ILS algorithm was run on two problem instances, \texttt{tspa} and \texttt{tspb}, while varying the \texttt{perturbation\_strength} from 1 to 30. The average objective score was recorded for each run. The results are visualized in Figure \ref{fig:ps_plot}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.97\linewidth]{ils_scores.png}
+\caption{Plot of average scores vs. perturbation strength.}
+\label{fig:ps_plot}
+\end{figure}
+
+\subsection{Analysis}
+As shown in the data, the quality of the solution (a lower score is better) generally improves as the perturbation strength increases from 1, but then levels off and can become worse. For instance \texttt{tspa}, the best score is achieved at $ps=18$ (69344.6). For \texttt{tspb}, the best score is achieved at $ps=26$ (43706.7).
+
+The value $ps=21$ was identified as a robust and near-optimal choice. It delivers the second-best result for \texttt{tspb} (43718.8) and a result for \texttt{tspa} (69364.1) that is very close to its optimum. This suggests that a perturbation strength in this range (e.g., 18-26) is effective, avoiding the pitfalls of being too small (stuck in local optima) or too large (degenerating to MSLS).
