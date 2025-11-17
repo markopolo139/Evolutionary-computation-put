@@ -284,7 +284,7 @@ inline auto multiple_start_local_search(size_t max_iters, const DistanceMatrix& 
             best_score = current_score;
             best = std::move(current);
         }
-    } while (max_iters-- != 0);
+    } while (--max_iters != 0);
     return best;
 }
 
