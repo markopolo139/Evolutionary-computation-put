@@ -12,6 +12,7 @@
 #include <map>
 #include <functional>
 #include <chrono>
+#include <tuple>
 
 struct Point {
     int x, y, cost;
@@ -195,7 +196,59 @@ inline void calculate_and_print_time_statistics(const std::vector<std::chrono::d
     std::cout << "Time: " << avg_time << "ms (" << min_time << "ms - " << max_time << "ms)" << std::endl;
 }
 
-#include <unordered_set>
+class ProgressBar {
+public:
+    ProgressBar(int progress, int total, int bar_width = 50)
+        : progress(progress), total(total), bar_width(bar_width) {}
+
+    friend std::ostream& operator<<(std::ostream& os, const ProgressBar& bar) {
+        float percentage = 0.0f;
+        if (bar.total > 0) {
+            percentage = static_cast<float>(bar.progress) / bar.total;
+        }
+        
+        int barProgress = static_cast<int>(bar.bar_width * percentage);
+
+        os << "[";
+        for (int i = 0; i < barProgress; ++i)
+            os << "=";
+        os << ">";
+        for (int i = 0; i < bar.bar_width - barProgress - 1; ++i)
+            os << " ";
+        os << "]";
+
+        return os;
+    }
+
+private:
+    int progress;
+    int total;
+    int bar_width;
+};
+
+inline void print_ls_runs_staticits(const std::vector<size_t>& ls_runs) {
+    if (ls_runs.empty()) {
+        return;
+    }
+
+    size_t min_ls_runs = std::numeric_limits<size_t>::max();
+    size_t max_ls_runs = std::numeric_limits<size_t>::min();
+    size_t sum_ls_runs = 0;
+
+    for (const auto& i_ls_runs : ls_runs) {
+        if (i_ls_runs < min_ls_runs) {
+            min_ls_runs = i_ls_runs;
+        }
+        if (i_ls_runs > max_ls_runs) {
+            max_ls_runs = i_ls_runs;
+        }
+        sum_ls_runs += i_ls_runs;
+    }
+
+    size_t avg_ls_runs = sum_ls_runs / ls_runs.size();
+    std::cout << "Number of LS runs: " << avg_ls_runs << " (" << min_ls_runs << " - " << max_ls_runs << ")" << std::endl;
+}
+
 // SOLUTIONS
 inline auto local_search_steepest_edges(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
     bool improvement = true;
@@ -288,6 +341,135 @@ inline auto multiple_start_local_search(size_t max_iters, const DistanceMatrix& 
     return best;
 }
 
+/**
+ * @brief Perturbs a solution to escape a local optimum.
+ * This implementation performs a "multiple swap" move:
+ * It swaps 'perturbation_strength' nodes from the solution with 'perturbation_strength' nodes
+ * that are *not* currently in the solution.
+ *
+ * @param solution The current local optimum solution.
+ * @param points_length The total number of points available (N).
+ * @param perturbation_strength The number of nodes to swap.
+ * @param random_engine The random number generator.
+ * @return A new, perturbed solution.
+ */
+inline auto perturb_solution(const Solution& solution, int points_length, int perturbation_strength, auto& random_engine) {
+    auto perturbed_solution = solution;
+
+    // Find nodes *not* in the solution
+    std::vector<int> non_solution_nodes;
+    std::vector<bool> in_solution(points_length, false);
+    for (int node : solution) {
+        in_solution[node] = true;
+    }
+    for (int i = 0; i < points_length; ++i) {
+        if (!in_solution[i]) {
+            non_solution_nodes.push_back(i);
+        }
+    }
+
+    // If there are no nodes outside the solution, we can't perturb.
+    if (non_solution_nodes.empty()) {
+        return perturbed_solution;
+    }
+
+    // Ensure perturbation strength is not larger than what's possible
+    int max_swaps = std::min({
+        static_cast<int>(perturbed_solution.size()), 
+        static_cast<int>(non_solution_nodes.size()), 
+        perturbation_strength
+    });
+
+    std::uniform_int_distribution<size_t> sol_dist(0, perturbed_solution.size() - 1);
+    std::uniform_int_distribution<size_t> non_sol_dist(0, non_solution_nodes.size() - 1);
+
+    for (int i = 0; i < max_swaps; ++i) {
+        // Select random indices to swap
+        size_t idx_to_remove = sol_dist(random_engine);
+        size_t idx_to_add = non_sol_dist(random_engine);
+
+        // Get the actual node values
+        int node_to_remove = perturbed_solution[idx_to_remove];
+        int node_to_add = non_solution_nodes[idx_to_add];
+
+        // Perform the swap
+        perturbed_solution[idx_to_remove] = node_to_add;
+        non_solution_nodes[idx_to_add] = node_to_remove; 
+    }
+
+    return perturbed_solution;
+}
+
+/**
+ * @brief Iterated Local Search (ILS).
+ * Starts with a local optimum, then repeatedly perturbs it and runs local search again,
+ * accepting the new solution if it's better.
+ *
+ * @param stop_duration The maximum time to run for (e.g., the time taken by MSLS).
+ * @param perturbation_strength The number of swaps to perform in each perturbation.
+ * @return The best solution found.
+ */
+inline auto iterated_local_search(
+    std::chrono::nanoseconds stop_duration,
+    const DistanceMatrix& distance_mat,
+    const std::vector<int>& node_costs,
+    int solution_length,
+    int points_length,
+    auto& random_engine,
+    int perturbation_strength = 3 // Default perturbation strength
+) {
+    auto start_time = std::chrono::steady_clock::now();
+    size_t ls_runs{ 0 };
+
+    // Generate an initial solution x
+    Solution x = generate_random_solution(solution_length, points_length, random_engine);
+    // x := Local search (x)
+    x = local_search_steepest_edges(x, distance_mat, node_costs); ++ls_runs;
+
+    int x_score = calculate_objective_function(distance_mat, x, node_costs);
+
+    // Keep track of the best solution found overall
+    Solution best_solution = x;
+    int best_score = x_score;
+
+    // Repeat until stopping conditions are met
+    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
+        // y := Perturb (x)
+        Solution y = perturb_solution(x, points_length, perturbation_strength, random_engine);
+        
+        // y := Local search (y)
+        y = local_search_steepest_edges(y, distance_mat, node_costs); ++ls_runs;
+        
+        int y_score = calculate_objective_function(distance_mat, y, node_costs);
+
+        // If f(y) < f(x) then (minimization problem)
+        if (y_score < x_score) {
+            x = std::move(y);
+            x_score = y_score;
+
+            // Update the overall best solution
+            if (x_score < best_score) {
+                best_score = x_score;
+                best_solution = x; // This is a copy
+            }
+        }
+    }
+
+    return std::make_tuple(best_solution, ls_runs);
+}
+
+inline auto generate_n_fibonacci_numbers(size_t n, int a = 0, int b = 1) {
+    std::vector<int> numbers;
+    numbers.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+        numbers.emplace_back(a);
+        int t = a;
+        a += b;
+        b = t;
+    }
+    return numbers;
+}
+
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Error: This program requires exactly one argument. It should specify the name of the instance" << std::endl;
@@ -328,30 +510,49 @@ int main(int argc, char* argv[]) {
     
     Solutions solutions;
     std::vector<std::chrono::duration<double, std::milli>> times;
+    std::vector<size_t> ls_runs;
 
-    for (size_t i = 0; i < 200; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        solutions.emplace_back(local_search_steepest_edges(generate_random_solution(solution_length, points.size(), rng), distance_mat, node_costs));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-    }
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ls_steepest_edges_random", "ls_steepest_edges_random");
-    calculate_and_print_time_statistics(times);
-    solutions.clear();
-    times.clear();
-    std::cout << std::endl;
-
-    for (size_t i = 0; i < 20; ++i) {
+    constexpr size_t max_runs = 20;
+    std::cout << "Running MSLS" << std::flush;
+    for (size_t i = 0; i < max_runs; ++i) {
         auto start = std::chrono::high_resolution_clock::now();
         solutions.emplace_back(multiple_start_local_search(200, distance_mat, node_costs, solution_length, points.size(), rng));
         auto end = std::chrono::high_resolution_clock::now();
         times.push_back(end - start);
+        std::cout << "\rRunning MSLS " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
     }
+    std::cout << std::endl;
     calculate_statistics(points, distance_mat, node_costs, solutions, instance, "msls", "msls");
     calculate_and_print_time_statistics(times);
+    std::chrono::duration<double, std::milli> sum = std::accumulate(times.begin(), times.end(), std::chrono::duration<double, std::milli>(0.0));
+    std::chrono::duration<double, std::milli> avg_ms = sum / times.size();
+    auto avg_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(avg_ms);
     solutions.clear();
     times.clear();
     std::cout << std::endl;
+
+    for (int perturbation_strength = 10; perturbation_strength <= 20; ++perturbation_strength) {
+        std::cout << "Running ILS (ps=" << perturbation_strength << ")" << std::flush;
+        for (size_t i = 0; i < max_runs; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
+            const auto result{ iterated_local_search(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, perturbation_strength) };
+            solutions.emplace_back(std::get<0>(result));
+            ls_runs.emplace_back(std::get<1>(result));
+            auto end = std::chrono::high_resolution_clock::now();
+            times.push_back(end - start);
+            std::cout << "\rRunning ILS (ps=" << perturbation_strength << ") " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
+        }
+        std::cout << std::endl;
+        std::ostringstream method;
+        method << "ils_" << perturbation_strength;
+        calculate_statistics(points, distance_mat, node_costs, solutions, instance, method.str(), method.str());
+        calculate_and_print_time_statistics(times);
+        print_ls_runs_staticits(ls_runs);
+        solutions.clear();
+        ls_runs.clear();
+        times.clear();
+        std::cout << std::endl;
+    }
 
 #ifndef DONT_PRINT_LATEX
     for (const auto& kv : best_solutions) {
