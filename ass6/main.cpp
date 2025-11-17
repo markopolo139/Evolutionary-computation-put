@@ -458,18 +458,6 @@ inline auto iterated_local_search(
     return std::make_tuple(best_solution, ls_runs);
 }
 
-inline auto generate_n_fibonacci_numbers(size_t n, int a = 0, int b = 1) {
-    std::vector<int> numbers;
-    numbers.reserve(n);
-    for (size_t i = 0; i < n; ++i) {
-        numbers.emplace_back(a);
-        int t = a;
-        a += b;
-        b = t;
-    }
-    return numbers;
-}
-
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Error: This program requires exactly one argument. It should specify the name of the instance" << std::endl;
@@ -531,28 +519,25 @@ int main(int argc, char* argv[]) {
     times.clear();
     std::cout << std::endl;
 
-    for (int perturbation_strength = 10; perturbation_strength <= 20; ++perturbation_strength) {
-        std::cout << "Running ILS (ps=" << perturbation_strength << ")" << std::flush;
-        for (size_t i = 0; i < max_runs; ++i) {
-            auto start = std::chrono::high_resolution_clock::now();
-            const auto result{ iterated_local_search(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, perturbation_strength) };
-            solutions.emplace_back(std::get<0>(result));
-            ls_runs.emplace_back(std::get<1>(result));
-            auto end = std::chrono::high_resolution_clock::now();
-            times.push_back(end - start);
-            std::cout << "\rRunning ILS (ps=" << perturbation_strength << ") " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-        }
-        std::cout << std::endl;
-        std::ostringstream method;
-        method << "ils_" << perturbation_strength;
-        calculate_statistics(points, distance_mat, node_costs, solutions, instance, method.str(), method.str());
-        calculate_and_print_time_statistics(times);
-        print_ls_runs_staticits(ls_runs);
-        solutions.clear();
-        ls_runs.clear();
-        times.clear();
-        std::cout << std::endl;
+    constexpr int perturbation_strength = 21;
+    std::cout << "Running ILS (ps=" << perturbation_strength << ")" << std::flush;
+    for (size_t i = 0; i < max_runs; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+        const auto result{ iterated_local_search(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, perturbation_strength) };
+        solutions.emplace_back(std::get<0>(result));
+        ls_runs.emplace_back(std::get<1>(result));
+        auto end = std::chrono::high_resolution_clock::now();
+        times.push_back(end - start);
+        std::cout << "\rRunning ILS (ps=" << perturbation_strength << ") " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
     }
+    std::cout << std::endl;
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ils", "ils");
+    calculate_and_print_time_statistics(times);
+    print_ls_runs_staticits(ls_runs);
+    solutions.clear();
+    ls_runs.clear();
+    times.clear();
+    std::cout << std::endl;
 
 #ifndef DONT_PRINT_LATEX
     for (const auto& kv : best_solutions) {

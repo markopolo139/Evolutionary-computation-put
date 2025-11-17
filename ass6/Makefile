@@ -1,5 +1,5 @@
 PROBLEMS := TSPA TSPB
-METHODS  := msls ils_10 ils_11 ils_12 ils_13 ils_14 ils_15 ils_16 ils_17 ils_18 ils_19 ils_20
+METHODS  := msls ils
 
 TARGETS := $(foreach prob,$(PROBLEMS),$(patsubst %,$(prob)_solution_%.png,$(METHODS)))
 
