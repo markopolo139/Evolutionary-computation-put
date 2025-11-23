@@ -13,7 +13,7 @@
         \State \texttt{current} $\gets$ \Call{GenerateRandomSolution}{\texttt{solutionLength}, \texttt{pointsLength}}
         \State \texttt{current} $\gets$ \Call{LocalSearchSteepestEdges}{\texttt{current}, \texttt{distanceMat}, \texttt{nodeCosts}}
         \State \texttt{currentScore} $\gets$ \Call{CalculateObjective}{\texttt{current}, \texttt{distanceMat}, \texttt{nodeCosts}}
-        \If{\texttt{currentScore} < \texttt{bestScore}}
+        \If{\texttt{currentScore} $<$ \texttt{bestScore}}
             \State \texttt{bestScore} $\gets$ \texttt{currentScore}
             \State \texttt{bestSolution} $\gets$ \texttt{current}
         \EndIf
@@ -71,7 +71,7 @@
     \State \texttt{bestScore} $\gets x\_score$
 
     \Comment{Repeat until stopping condition is met}
-    \While{\Call{Now}{} - \texttt{startTime} < \texttt{stopDuration}}
+    \While{\Call{Now}{} $-$ \texttt{startTime} $<$ \texttt{stopDuration}}
         \State $y \gets$ \Call{Perturb}{$x$, \texttt{perturbStrength}} \Comment{e.g., Multiple-Swap move}
         \State $y \gets$ \Call{LocalSearchSteepestEdges}{$y$, \texttt{distanceMat}, \texttt{nodeCosts}}
         \State $y\_score \gets$ \Call{CalculateObjective}{$y$, \texttt{distanceMat}, \texttt{nodeCosts}}
