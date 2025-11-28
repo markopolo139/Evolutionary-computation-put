@@ -620,10 +620,8 @@ inline auto large_neighborhood_search(
     // Generate an initial solution x
     Solution x = generate_random_solution(solution_length, points_length, random_engine);
 
-    if constexpr (use_ls) {
-        // x := Local search (x)
-        x = local_search_steepest_edges(x, distance_mat, node_costs);
-    }
+    // x := Local search (x)
+    x = local_search_steepest_edges(x, distance_mat, node_costs);
 
     int x_score = calculate_objective_function(distance_mat, x, node_costs);
 
