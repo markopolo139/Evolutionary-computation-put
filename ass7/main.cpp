@@ -543,6 +543,82 @@ inline auto destroy(
     return new_solution;
 }
 
+inline auto destory_segments(
+    Solution solution,
+    const DistanceMatrix& distance_mat,
+    const std::vector<int>& node_costs,
+    auto& rng,
+    double strength,
+    double cost_weight = 1.0, 
+    double dist_weight = 1.0
+) {
+    int original_size = solution.size();
+    if (original_size < 3 || strength <= 0.0) return solution;
+
+    int total_to_remove = static_cast<int>(original_size * strength);
+    // Safety: Ensure we leave at least 2 nodes
+    if (original_size - total_to_remove < 2) total_to_remove = original_size - 2;
+
+    while (total_to_remove > 0) {
+        int current_size = solution.size();
+        
+        // 1. Pick a random length for this iteration
+        // We want at least length 1, and max length can't exceed what's left to remove.
+        // We also cap it at current_size - 2 to ensure we don't wipe the whole vector.
+        int max_len = std::min(total_to_remove, current_size - 2);
+        if (max_len < 1) break; 
+
+        // You can tune this. Maybe you prefer removing chunks of 3-5?
+        // Here we allow anything from 1 up to max_len.
+        std::uniform_int_distribution<int> len_dist(1, max_len);
+        int window_len = len_dist(rng);
+
+        // 2. Sliding Window: Calculate score for every possible start index
+        std::vector<double> window_weights;
+        int num_windows = current_size - window_len + 1; // Linear sliding
+        
+        // Optimization: If vector is small, just pick random
+        if (num_windows <= 0) break;
+
+        for (int start_idx = 0; start_idx < num_windows; ++start_idx) {
+            double current_window_cost = 0.0;
+            double current_window_dist = 0.0;
+
+            // Sum costs inside the window
+            for (int k = 0; k < window_len; ++k) {
+                int node_idx = solution[start_idx + k];
+                current_window_cost += node_costs[node_idx];
+
+                // Add distance to next node (if strictly inside the window)
+                if (k < window_len - 1) {
+                    int next_node_idx = solution[start_idx + k + 1];
+                    current_window_dist += distance_mat[node_idx][next_node_idx];
+                }
+            }
+            
+            // Heuristic Score: 
+            // We square it to make "bad" segments much more likely to be picked
+            double score = (cost_weight * current_window_cost) + (dist_weight * current_window_dist);
+            window_weights.push_back(score * score); 
+        }
+
+        // 3. Select a window start index using weighted probability
+        std::discrete_distribution<int> select_dist(window_weights.begin(), window_weights.end());
+        int picked_start = select_dist(rng);
+
+        // 4. Remove the sequence
+        // std::vector::erase removes range [first, last)
+        solution.erase(
+            solution.begin() + picked_start, 
+            solution.begin() + picked_start + window_len
+        );
+
+        total_to_remove -= window_len;
+    }
+
+    return solution;
+}
+
 inline auto nn_insert_weighted_regret(Solution solution, int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, double regret_weight = 1.0, double cost_weight = 1.0) {
     solution.reserve(solution_length);
 
@@ -632,7 +708,8 @@ inline auto large_neighborhood_search(
     // Repeat until stopping conditions are met
     while (std::chrono::steady_clock::now() - start_time < stop_duration) {
         // y := Destroy(x)
-        Solution y = destroy(x, distance_mat, node_costs, random_engine, 0.2);
+        // Solution y = destroy(x, distance_mat, node_costs, random_engine, 0.3);
+        Solution y = destory_segments(x, distance_mat, node_costs, random_engine, 0.4);
 
         // y := Repair(y)
         y = nn_insert_weighted_regret(std::move(y), x.size(), distance_mat, node_costs);
