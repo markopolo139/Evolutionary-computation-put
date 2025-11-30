@@ -1,0 +1,123 @@
+
+\section{Algorithms}
+\label{sec:pseudocode}
+
+\begin{algorithm}[H]
+    \caption{Large Neighborhood Search (LNS)}
+    \begin{algorithmic}[1]
+        \Require Time Limit $T_{max}$, Distance Matrix $D$, Node Costs $C$, Parameters $N, P$, Boolean $UseLS$
+        \Ensure Best Solution $S_{best}$, Iteration Count $k$
+
+        \State Start Timer $t$
+        \State $k \gets 0$
+
+        \State $S \gets \textsc{GenerateRandomSolution}(N, P)$
+        \State $S \gets \textsc{LocalSearchSteepest}(S)$
+        \State $f_{curr} \gets \textsc{Objective}(S)$
+        
+        \State $S_{best} \gets S$
+        \State $f_{best} \gets f_{curr}$
+
+        \While{$(current\_time - t) < T_{max}$}
+            \State \Comment{Destroy Phase (using strength $\alpha = 0.4$)}
+            \State $S' \gets \textsc{SegmentedDestroy}(S, \alpha=0.4)$
+            
+            \State \Comment{Repair Phase}
+            \State $S' \gets \textsc{InsertWeightedRegret}(S')$
+
+            \If{$UseLS$ is \textbf{true}}
+                \State $S' \gets \textsc{LocalSearchSteepest}(S')$
+            \EndIf
+
+            \State $f_{new} \gets \textsc{Objective}(S')$
+
+            \State \Comment{Acceptance Criterion (Strict Improvement)}
+            \If{$f_{new} < f_{curr}$}
+                \State $S \gets S'$
+                \State $f_{curr} \gets f_{new}$
+
+                \If{$f_{curr} < f_{best}$}
+                    \State $S_{best} \gets S$
+                    \State $f_{best} \gets f_{curr}$
+                \EndIf
+            \EndIf
+
+            \State $k \gets k + 1$
+        \EndWhile
+
+        \State \Return $(S_{best}, k)$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \caption{Segmented Weighted Destroy}
+    \begin{algorithmic}[1]
+        \Require Solution $S$, Distance Matrix $D$, Node Costs $C$, Strength $\alpha$, Weights $w_{cost}, w_{dist}$
+        \Ensure Partial Solution $S'$ (with nodes removed)
+
+        \State $N \gets \text{size}(S)$
+        \If{$N < 3$ \textbf{or} $\alpha \le 0$} \Return $S$ \EndIf
+        
+        \State $K_{target} \gets \lfloor N \times \alpha \rfloor$
+        \State $K_{target} \gets \min(K_{target}, N - 2)$ \Comment{Ensure at least 2 nodes remain}
+        
+        \State $Mask \gets$ array of $N$ \textbf{false} values
+        \State $removed \gets 0$
+
+        \While{$removed < K_{target}$}
+            \State $rem_{quota} \gets K_{target} - removed$
+            \State $L_{max} \gets \min(rem_{quota}, \lfloor N/2 \rfloor)$
+            \If{$L_{max} < 1$} \textbf{break} \EndIf
+            
+            \State $L \gets \text{RandomInteger}(1, L_{max})$ \Comment{Random segment length}
+            
+            \State $Candidates \gets \emptyset$
+            
+            \Comment{Identify all valid windows for length $L$}
+            \For{$i \gets 0$ \textbf{to} $N-1$}
+                \State $overlaps \gets \textbf{false}$
+                \For{$k \gets 0$ \textbf{to} $L-1$}
+                    \If{$Mask[(i + k) \pmod N]$ is \textbf{true}}
+                        \State $overlaps \gets \textbf{true}$
+                        \State \textbf{break}
+                    \EndIf
+                \EndFor
+                
+                \If{\textbf{not} $overlaps$}
+                    \State $W_{cost} \gets \sum_{k=0}^{L-1} C[S_{(i+k) \pmod N}]$
+                    \State $W_{dist} \gets \sum_{k=0}^{L-1} D[S_{(i+k) \pmod N}][S_{(i+k+1) \pmod N}]$
+                    \State $Score \gets (w_{cost} \cdot W_{cost} + w_{dist} \cdot W_{dist})^2$
+                    \State Add pair $(i, Score)$ to $Candidates$
+                \EndIf
+            \EndFor
+
+            \If{$Candidates$ is empty} \textbf{break} \EndIf
+
+            \State Select index $start_{idx}$ from $Candidates$ with probability $\propto Score$
+            
+            \For{$k \gets 0$ \textbf{to} $L-1$}
+                \State $Mask[(start_{idx} + k) \pmod N] \gets \textbf{true}$
+            \EndFor
+            \State $removed \gets removed + L$
+        \EndWhile
+
+        \State $S' \gets$ empty sequence
+        \For{$i \gets 0$ \textbf{to} $N-1$}
+            \If{$Mask[i]$ is \textbf{false}}
+                \State Append $S[i]$ to $S'$
+            \EndIf
+        \EndFor
+
+        \State \Return $S'$
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{Reconstruction and Optimization}
+
+\begin{description}
+    \item[Repair Operator:] \texttt{nn\_insert\_weighted\_regret} \\
+    Slightly modified implementation that takes a partially constructed solution and the desired length to rebuild.
+
+    \item[Local Search:] \texttt{local\_search\_steepest\_edges} \\
+    No modifications were needed.
+\end{description}

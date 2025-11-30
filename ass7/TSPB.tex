@@ -1,0 +1,43 @@
+\begin{table}[H] % Use [H] from float package for 'here' if available, otherwise use [!htbp]
+\centering
+\caption{Best Achieved Solution for TSPB.csv}
+\label{tab:tspb_best_sequence}
+\begin{tabular}{|p{0.25\linewidth}|p{0.75\linewidth}|} % Two columns: 25% for Method, 75% for Sequence
+\hline
+\textbf{Method} & \textbf{Best Sequence} \\
+\hline
+msls & 185, 130, 95, 86, 166, 194, 176, 180, 113, 26, 114, 137, 127, 89, 103, 163, 187, 153, 81, 77, 97, 141, 91, 79, 61, 36, 177, 5, 78, 175, 80, 190, 193, 31, 54, 117, 1, 16, 27, 38, 135, 63, 40, 107, 10, 133, 122, 90, 51, 121, 118, 134, 147, 6, 188, 169, 132, 70, 3, 15, 145, 195, 168, 139, 11, 138, 104, 8, 82, 111, 144, 160, 33, 49, 29, 0, 109, 35, 143, 106, 124, 62, 18, 55, 34, 155, 184, 152, 183, 140, 4, 149, 28, 20, 60, 148, 47, 94, 66, 179, 185 \\
+\hline
+ils & 153, 81, 77, 141, 91, 61, 36, 177, 5, 78, 175, 142, 45, 80, 190, 136, 73, 54, 31, 193, 117, 198, 156, 1, 27, 38, 63, 40, 107, 133, 122, 135, 131, 121, 51, 90, 147, 6, 188, 169, 132, 70, 3, 15, 145, 13, 195, 168, 139, 11, 138, 33, 160, 144, 104, 8, 82, 111, 29, 0, 109, 35, 143, 106, 124, 62, 18, 55, 34, 170, 152, 183, 140, 4, 149, 28, 20, 60, 148, 47, 94, 66, 179, 22, 99, 130, 95, 185, 86, 166, 194, 176, 113, 114, 137, 127, 89, 103, 163, 187, 153 \\
+\hline
+lns & 187, 153, 81, 77, 141, 91, 61, 36, 177, 5, 78, 175, 162, 80, 190, 136, 73, 54, 31, 193, 117, 198, 156, 1, 16, 27, 38, 63, 40, 107, 133, 122, 135, 131, 121, 51, 90, 147, 6, 188, 169, 132, 70, 3, 15, 145, 13, 195, 168, 43, 139, 11, 138, 33, 160, 144, 104, 8, 21, 82, 111, 29, 0, 109, 35, 143, 106, 124, 62, 18, 55, 34, 170, 152, 183, 140, 4, 149, 28, 20, 60, 148, 47, 94, 66, 179, 22, 99, 130, 95, 185, 86, 166, 194, 176, 113, 103, 127, 89, 163, 187 \\
+\hline
+lns+ls & 131, 121, 51, 90, 147, 6, 188, 169, 132, 70, 3, 15, 145, 13, 195, 168, 43, 139, 11, 138, 33, 160, 144, 104, 8, 21, 82, 111, 29, 0, 109, 35, 143, 106, 124, 62, 18, 55, 34, 170, 152, 183, 140, 4, 149, 28, 20, 60, 148, 47, 94, 66, 179, 22, 99, 130, 95, 185, 86, 166, 194, 176, 113, 103, 127, 89, 163, 187, 153, 81, 77, 141, 91, 61, 36, 177, 5, 78, 175, 142, 45, 80, 190, 136, 73, 54, 31, 193, 117, 198, 156, 1, 16, 27, 38, 63, 40, 107, 122, 135, 131 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.97\linewidth]{TSPB_solution_msls.png}
+\caption{\label{fig:tspb_msls}msls}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.97\linewidth]{TSPB_solution_ils.png}
+\caption{\label{fig:tspb_ils}ils}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.97\linewidth]{TSPB_solution_lns.png}
+\caption{\label{fig:tspa_ils}lns}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.97\linewidth]{TSPB_solution_lns_ls.png}
+\caption{\label{fig:tspa_ils}lns+ls}
+\end{figure}
