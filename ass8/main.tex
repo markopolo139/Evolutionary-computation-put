@@ -1,0 +1,67 @@
+\documentclass{article}
+
+\usepackage[english]{babel}
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{ragged2e}
+\usepackage{float}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+
+\title{Evolutionary Computation - Assignment 8}
+\author{
+  Patryk Janiak\\
+  \texttt{156053}
+  \and
+  Marek Seget\\
+  \texttt{156042}
+}
+
+\begin{document}
+\maketitle
+
+\section{Problem description}
+We are given three columns of integers with a row for each node. The first two columns contain x
+and y coordinates of the node positions in a plane. The third column contains node costs. The goal is
+to select exactly 50\% of the nodes (if the number of nodes is odd we round the number of nodes to
+be selected up) and form a Hamiltonian cycle (closed path) through this set of nodes such that the
+sum of the total length of the path plus the total cost of the selected nodes is minimized.
+
+% In this assignment, we analyze the structure of the search space by examining the similarity between local optima. We generate 1000 random local optima and calculate their similarity to:
+% \begin{itemize}
+%     \item The best solution found within the 1000 local optima.
+%     \item A high-quality solution found by an Iterated Local Search (ILS) algorithm.
+%     \item The average similarity to all other local optima.
+% \end{itemize}
+% We use two similarity measures: the number of common edges and the number of common selected nodes.
+
+\input{algorithms.tex}
+
+\section{Results}
+
+\subsection{TSPA}
+\input{TSPA.tex}
+
+\subsection{TSPB}
+\input{TSPB.tex}
+
+\newpage
+
+\section{Conclusions}
+
+We analyzed the correlation between the objective function value of local optima and their similarity to reference solutions (best found, best known) and the average similarity to other local optima.
+
+The results are presented in the charts above, showing the relationship for both similarity measures: common edges and common selected nodes.
+
+Link to the source code:
+
+\url{https://github.com/markopolo139/Evolutionary-computation-put/tree/main/ass8}
+
+\end{document}
