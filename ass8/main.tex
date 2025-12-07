@@ -34,14 +34,6 @@ to select exactly 50\% of the nodes (if the number of nodes is odd we round the 
 be selected up) and form a Hamiltonian cycle (closed path) through this set of nodes such that the
 sum of the total length of the path plus the total cost of the selected nodes is minimized.
 
-% In this assignment, we analyze the structure of the search space by examining the similarity between local optima. We generate 1000 random local optima and calculate their similarity to:
-% \begin{itemize}
-%     \item The best solution found within the 1000 local optima.
-%     \item A high-quality solution found by an Iterated Local Search (ILS) algorithm.
-%     \item The average similarity to all other local optima.
-% \end{itemize}
-% We use two similarity measures: the number of common edges and the number of common selected nodes.
-
 \input{algorithms.tex}
 
 \section{Results}
@@ -51,8 +43,6 @@ sum of the total length of the path plus the total cost of the selected nodes is
 
 \subsection{TSPB}
 \input{TSPB.tex}
-
-\newpage
 
 \section{Conclusions}
 

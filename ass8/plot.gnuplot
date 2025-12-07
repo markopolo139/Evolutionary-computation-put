@@ -14,7 +14,7 @@ set datafile separator ","
 # Calculate statistics to get correlation
 stats INPUT using 1:2 every ::1 name "STATS" nooutput
 
-set title sprintf('%s\nCorrelation: %.4f', TITLE, STATS_correlation)
+set title sprintf("%s\nCorrelation: %.4f", TITLE, STATS_correlation)
 set xlabel 'Objective Function Value'
 set ylabel 'Similarity'
 set grid

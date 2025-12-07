@@ -12,7 +12,7 @@ all: $(TARGETS) main.pdf
 
 # Generic rule for plotting
 %.png: %.csv plot.gnuplot
-	gnuplot -e "INPUT='$<'; OUTPUT='$@'; TITLE='$*'" plot.gnuplot
+	gnuplot -e "INPUT='$<'; OUTPUT='$@'; TITLE='$(subst _,\_,$*)'" plot.gnuplot
 
 # Dependency management for CSV generation
 # We use stamp files to ensure main is run only once per instance to generate all related CSVs
