@@ -59,7 +59,7 @@ We implemented a Hybrid Evolutionary Algorithm (HEA) with two different recombin
 
 Operator 1 (Common Edges + Random) combined with Local Search performed competitively but often struggled to find better optima than ILS/LNS within the same time budget, possibly due to the random reconstruction destroying too much structure.
 
-Operator 2 (Filter + Repair) showed different behaviors. Without Local Search, it converged very quickly but to lower quality solutions compared to the LS-based methods. However, when combined with Local Search, it provided a robust mechanism for exploring the search space, though the high computational cost of the repair and LS steps limited the number of generations.
+Operator 2 (Filter + Repair) showed different behaviors. Without Local Search, it converged to lower quality solutions compared to the LS-based methods. However, when combined with Local Search, it provided a robust mechanism for exploring the search space.
 
 Overall, the hybrid approaches offer a good balance of diversification and intensification, but tuning the balance between the expensive local search and the population dynamics is crucial.
 
