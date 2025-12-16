@@ -1,0 +1,65 @@
+\section{Algorithms}
+\label{sec:pseudocode}
+
+\subsection{Improved Hybrid Evolutionary Algorithm (IHEA)}
+
+The Improved Hybrid Evolutionary Algorithm (IHEA) builds upon the standard HEA by introducing an Island Model to preserve diversity and parallelize the search. It divides the population into several isolated subpopulations (islands) that evolve independently. Migration allows elite solutions to spread between islands periodically. Additionally, a stagnation detection mechanism restarts islands that stop improving, preventing premature convergence.
+
+Key improvements include:
+\begin{itemize}
+    \item \textbf{Island Model:} The population is split into 6 islands.
+    \item \textbf{Tournament Selection:} Used instead of random or roulette selection to increase selection pressure.
+    \item \textbf{Stagnation & Restart:} Islands are wiped and re-initialized (keeping the elite) if they fail to improve for a set number of generations.
+    \item \textbf{Recombination Operator 1:} The Common Edges operator is used as it showed better performance in previous experiments.
+\end{itemize}
+
+\begin{algorithm}[H]
+    \caption{Improved Hybrid Evolutionary Algorithm (IHEA)}
+    \begin{algorithmic}[1]
+        \Require Time Limit $T_{max}$, Islands $K=6$, Pop/Island $N=20$, Migration Interval $M=50$, Stagnation Limit $L_{stagnation}=250$
+        \Ensure Best Solution $S_{best}$
+
+        \State \textbf{Initialization:}
+        \For{$k=1$ to $K$}
+            \State Initialize Island $I_k$ with $N$ random + LS solutions
+        \EndFor
+        \State $S_{best} \gets \textsc{GetGlobalBest}()$
+
+        \State \textbf{Main Loop:}
+        \While{$Elapsed(t) < T_{max}$}
+            \For{$k=1$ to $K$}
+                \State \Comment{Check Stagnation}
+                \If{$StagnationCounter[k] > L_{stagnation}$}
+                    \State $S_{elite} \gets \textsc{Best}(I_k)$
+                    \State \textsc{RestartIsland}($I_k$) \Comment{Randomize, keep $S_{elite}$}
+                    \State $StagnationCounter[k] \gets 0$
+                \EndIf
+
+                \State \Comment{Evolution Step}
+                \State $P_1 \gets \textsc{TournamentSelection}(I_k, size=2)$
+                \State $P_2 \gets \textsc{TournamentSelection}(I_k, size=2)$
+                \State $C \gets \textsc{Operator1}(P_1, P_2)$
+                \State $C \gets \textsc{LocalSearch}(C)$
+
+                \State Update $S_{best}$ if $f(C) < f(S_{best})$
+
+                \State \Comment{Steady-State Replacement}
+                \If{$f(C)$ improves $I_k$ and is unique}
+                    \State Replace worst in $I_k$ with $C$
+                    \State $StagnationCounter[k] \gets 0$
+                \Else
+                    \State $StagnationCounter[k] \gets StagnationCounter[k] + 1$
+                \EndIf
+            \EndFor
+
+            \State \Comment{Migration (Ring Topology)}
+            \If{$Iteration \pmod M == 0$}
+                \For{$k=1$ to $K$}
+                    \State $Dest \gets (k \pmod K) + 1$
+                    \State Copy Best($I_k$) to $I_{Dest}$ (replacing worst)
+                \EndFor
+            \EndIf
+        \EndWhile
+        \State \Return $S_{best}$
+    \end{algorithmic}
+\end{algorithm}
