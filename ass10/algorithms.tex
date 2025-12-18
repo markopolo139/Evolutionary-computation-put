@@ -1,63 +1,75 @@
 \section{Algorithms}
 \label{sec:pseudocode}
 
-\subsection{Improved Hybrid Evolutionary Algorithm (IHEA)}
+\subsection{Optimized Hybrid Evolutionary Algorithm (OHEA)}
 
-The Improved Hybrid Evolutionary Algorithm (IHEA) builds upon the standard HEA by introducing an Island Model to preserve diversity and parallelize the search. It divides the population into several isolated subpopulations (islands) that evolve independently. Migration allows elite solutions to spread between islands periodically. Additionally, a stagnation detection mechanism restarts islands that stop improving, preventing premature convergence.
+The Optimized Hybrid Evolutionary Algorithm (OHEA) is a high-performance memetic algorithm designed to maximize solution quality within a fixed time budget. It integrates an aggressive, highly optimized Local Search with a diversity-preserving steady-state evolutionary framework.
 
-Key improvements include:
+Key components of the algorithm include:
 \begin{itemize}
-    \item \textbf{Island Model:} The population is split into 6 islands.
-    \item \textbf{Tournament Selection:} Used instead of random or roulette selection to increase selection pressure.
-    \item \textbf{Stagnation & Restart:} Islands are wiped and re-initialized (keeping the elite) if they fail to improve for a set number of generations.
-    \item \textbf{Recombination Operator 1:} The Common Edges operator is used as it showed better performance in previous experiments.
+    \item \textbf{Fast Local Search:} Utilizes \textit{Candidate Lists} (size 40) to limit neighborhood exploration to promising edges and \textit{Don't Look Bits} (DLB) to avoid redundant checks, significantly speeding up convergence. It performs both intra-route 2-opt moves and inter-route node swaps.
+    \item \textbf{Edge Recombination Crossover:} A robust crossover operator that constructs offspring by greedily selecting edges present in either parent. It prioritizes neighbors with fewer remaining connections to preserve edge structure, using spatial distance as a tie-breaker.
+    \item \textbf{Diversity Management:} The population (size 20) strictly forbids duplicate objective function values. Offspring only replace the worst individual if they are unique and strictly better.
+    \item \textbf{Cataclysmic Restart:} If the global best solution does not improve for a specified number of iterations (300), the population is restarted. The global best is preserved, while other individuals are replaced by new random solutions improved by local search.
 \end{itemize}
 
 \begin{algorithm}[H]
-    \caption{Improved Hybrid Evolutionary Algorithm (IHEA)}
+    \caption{Optimized Hybrid Evolutionary Algorithm (OHEA)}
     \begin{algorithmic}[1]
-        \Require Time Limit $T_{max}$, Islands $K=6$, Pop/Island $N=20$, Migration Interval $M=50$, Stagnation Limit $L_{stagnation}=250$
+        \Require Time Limit $T_{max}$, Population Size $N=20$, Candidates $K=40$
         \Ensure Best Solution $S_{best}$
 
         \State \textbf{Initialization:}
-        \For{$k=1$ to $K$}
-            \State Initialize Island $I_k$ with $N$ random + LS solutions
-        \EndFor
-        \State $S_{best} \gets \textsc{GetGlobalBest}()$
+        \State $Pop \gets \emptyset$
+        \While{$|Pop| < N$}
+            \State $S \gets \textsc{RandomSolution}()$
+            \State $S \gets \textsc{FastLocalSearch}(S, Candidates, DLB)$
+            \If{$f(S) \notin \{f(P) \mid P \in Pop\}$}
+                \State $Pop \gets Pop \cup \{S\}$
+            \EndIf
+        \EndWhile
+        \State $S_{best} \gets \textsc{GetBest}(Pop)$
+        \State $Stagnation \gets 0$
 
         \State \textbf{Main Loop:}
         \While{$Elapsed(t) < T_{max}$}
-            \For{$k=1$ to $K$}
-                \State \Comment{Check Stagnation}
-                \If{$StagnationCounter[k] > L_{stagnation}$}
-                    \State $S_{elite} \gets \textsc{Best}(I_k)$
-                    \State \textsc{RestartIsland}($I_k$) \Comment{Randomize, keep $S_{elite}$}
-                    \State $StagnationCounter[k] \gets 0$
-                \EndIf
+            \State \Comment{Selection}
+            \State $P_1 \gets \textsc{BinaryTournament}(Pop)$
+            \State $P_2 \gets \textsc{Random}(Pop \setminus \{P_1\})$
 
-                \State \Comment{Evolution Step}
-                \State $P_1 \gets \textsc{TournamentSelection}(I_k, size=2)$
-                \State $P_2 \gets \textsc{TournamentSelection}(I_k, size=2)$
-                \State $C \gets \textsc{Operator1}(P_1, P_2)$
-                \State $C \gets \textsc{LocalSearch}(C)$
+            \State \Comment{Recombination}
+            \State $C \gets \textsc{EdgeRecombinationCrossover}(P_1, P_2)$
 
-                \State Update $S_{best}$ if $f(C) < f(S_{best})$
+            \State \Comment{Mutation (Prob $= 0.05$)}
+            \If{$Rand(0,1) < 0.05$}
+                \State $C \gets \textsc{DoubleBridgePerturbation}(C)$
+            \EndIf
 
-                \State \Comment{Steady-State Replacement}
-                \If{$f(C)$ improves $I_k$ and is unique}
-                    \State Replace worst in $I_k$ with $C$
-                    \State $StagnationCounter[k] \gets 0$
+            \State \Comment{Improvement}
+            \State $C \gets \textsc{FastLocalSearch}(C, Candidates, DLB)$
+
+            \State \Comment{Steady-State Replacement with Diversity Check}
+            \If{$f(C) \notin \{f(P) \mid P \in Pop\}$ \textbf{and} $f(C) < f(\textsc{Worst}(Pop))$}
+                \State Replace $\textsc{Worst}(Pop)$ with $C$
+                \If{$f(C) < f(S_{best})$}
+                    \State $S_{best} \gets C$
+                    \State $Stagnation \gets 0$
                 \Else
-                    \State $StagnationCounter[k] \gets StagnationCounter[k] + 1$
+                    \State $Stagnation \gets Stagnation + 1$
                 \EndIf
-            \EndFor
+            \Else
+                \State $Stagnation \gets Stagnation + 1$
+            \EndIf
 
-            \State \Comment{Migration (Ring Topology)}
-            \If{$Iteration \pmod M == 0$}
-                \For{$k=1$ to $K$}
-                    \State $Dest \gets (k \pmod K) + 1$
-                    \State Copy Best($I_k$) to $I_{Dest}$ (replacing worst)
-                \EndFor
+            \State \Comment{Cataclysm Restart}
+            \If{$Stagnation > 300$}
+                \State $Pop \gets \{S_{best}\}$
+                \While{$|Pop| < N$}
+                    \State $S \gets \textsc{RandomSolution}()$
+                    \State $S \gets \textsc{FastLocalSearch}(S, Candidates, DLB)$
+                    \State $Pop \gets Pop \cup \{S\}$
+                \EndWhile
+                \State $Stagnation \gets 0$
             \EndIf
         \EndWhile
         \State \Return $S_{best}$

@@ -21,10 +21,10 @@ struct Point {
 };
 
 using Points = std::vector<Point>;
-using DistanceMatrix = std::vector<std::vector<int>>;
+using DistanceMatrix = std::vector<std::vector<int>>; 
 using Solution = std::vector<int>;
 using Solutions = std::vector<Solution>;
-using CandidateMatrix = std::vector<std::vector<int>>;
+using CandidateMatrix = std::vector<std::vector<int>>; 
 
 inline auto read_points(auto& input) {
     Points points;
@@ -107,7 +107,7 @@ inline auto calculate_candidate_matrix(const DistanceMatrix& distance_mat, int k
         sorted_nodes.reserve(distance_mat.size());
         for (size_t j = 0; j < distance_mat.size(); ++j) {
             if (i != j) {
-                sorted_nodes.push_back({distance_mat[i][j], j});
+                sorted_nodes.push_back({distance_mat[i][j], (int)j});
             }
         }
         std::sort(sorted_nodes.begin(), sorted_nodes.end());
@@ -335,222 +335,100 @@ inline auto local_search_steepest_edges(Solution solution, const DistanceMatrix&
     return solution;
 }
 
-// Optimized Local Search with Candidate Lists
-inline auto local_search_candidates(Solution solution, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, const CandidateMatrix& candidates) {
-    bool improvement = true;
-    while (improvement) {
-        improvement = false;
-        int best_delta = 0;
-        int move_type = 0; // 0: None, 1: 2-opt, 2: Swap(In-In), 3: Shift(In-In), 4: Swap(In-Out)
-        int best_u_idx = -1, best_v_idx = -1; // Indices in solution
-        int best_v_val = -1; // Value for In-Out swap
+// Optimized Local Search with Candidate Lists and DLB
+// Returns tuple<Solution, int> where int is number of "moves" or just calls?
+// User wants "Number of LS runs". 
+// In MSLS/ILS context, an "LS run" is usually one descent to local optimum.
+// So this function just performs the descent.
+inline Solution local_search_fast(Solution sol, const DistanceMatrix& dist, const std::vector<int>& node_costs, const CandidateMatrix& candidates) {
+    int n_sol = (int)sol.size();
+    int n_total = (int)dist.size();
+    
+    // Position lookup
+    std::vector<int> pos(n_total, -1);
+    for(int i=0; i<n_sol; ++i) pos[sol[i]] = i;
 
-        // Map from node index to position in solution for fast lookup
-        std::vector<int> node_pos(distance_mat.size(), -1);
-        for(size_t i=0; i<solution.size(); ++i) node_pos[solution[i]] = i;
+    // Don't Look Bits
+    std::vector<bool> dlb(n_total, false);
+    
+    bool improved = true;
+    while(improved) {
+        improved = false;
 
-        for (size_t i = 0; i < solution.size(); ++i) {
-            int u = solution[i];
-            int prev_u = solution[(i + solution.size() - 1) % solution.size()];
-            int next_u = solution[(i + 1) % solution.size()];
+        for (int i = 0; i < n_sol; ++i) {
+            int u = sol[i];
+            if (dlb[u]) continue;
 
-            // Check candidates of u
+            bool move_found = false;
+
+            // Neighbors in solution
+            int idx_u = i;
+            int idx_prev_u = (i - 1 + n_sol) % n_sol;
+            int idx_next_u = (i + 1) % n_sol;
+            int prev_u = sol[idx_prev_u];
+            int next_u = sol[idx_next_u];
+
             for (int v : candidates[u]) {
-                int j = node_pos[v];
-                
-                if (j != -1) {
-                    // v is IN solution
-                    if (v == prev_u || v == next_u) continue;
-                    int next_v = solution[(j + 1) % solution.size()];
-                    
-                    // 1. Edge Exchange (2-opt)
-                    if (next_u != v && u != next_v) {
-                         int delta_2opt = distance_mat[u][v] + distance_mat[next_u][next_v] -
-                                          (distance_mat[u][next_u] + distance_mat[v][next_v]);
-                         if (delta_2opt < best_delta) {
-                             best_delta = delta_2opt;
-                             move_type = 1;
-                             best_u_idx = i;
-                             best_v_idx = j;
-                         }
-                    }
+                if (v == prev_u || v == next_u) continue; 
 
-                    // 2. Vertex Swap (In-In)
-                    {
-                        int delta_swap = 0;
-                        if (next_u == v) { 
-                             int prev_u_node = prev_u;
-                             int next_v_node = next_v;
-                             delta_swap = distance_mat[prev_u_node][v] + distance_mat[v][u] + distance_mat[u][next_v_node]
-                                        - (distance_mat[prev_u_node][u] + distance_mat[u][v] + distance_mat[v][next_v_node]);
-                        } else if (next_v == u) {
-                             int prev_v = solution[(j + solution.size() - 1) % solution.size()];
-                             delta_swap = distance_mat[prev_v][u] + distance_mat[u][v] + distance_mat[v][next_u]
-                                        - (distance_mat[prev_v][v] + distance_mat[v][u] + distance_mat[u][next_u]);
-                        } else {
-                             int prev_v = solution[(j + solution.size() - 1) % solution.size()];
-                             delta_swap = (distance_mat[prev_u][v] + node_costs[v] + distance_mat[v][next_u] + node_costs[next_u])
-                                        - (distance_mat[prev_u][u] + node_costs[u] + distance_mat[u][next_u] + node_costs[next_u])
-                                        + (distance_mat[prev_v][u] + node_costs[u] + distance_mat[u][next_v] + node_costs[next_v])
-                                        - (distance_mat[prev_v][v] + node_costs[v] + distance_mat[v][next_v] + node_costs[next_v]);
-                        }
+                int idx_v = pos[v];
 
-                        if (delta_swap < best_delta) {
-                            best_delta = delta_swap;
-                            move_type = 2;
-                            best_u_idx = i;
-                            best_v_idx = j;
-                        }
-                    }
+                if (idx_v != -1) {
+                    // v is in solution (Intra-route 2-opt)
+                    int idx_next_v = (idx_v + 1) % n_sol;
+                    int next_v = sol[idx_next_v];
 
-                    // 3. Node Shift (In-In)
-                    if (next_v != u && v != u && v != prev_u) {
-                        int delta_shift = (distance_mat[prev_u][next_u] - distance_mat[prev_u][u] - distance_mat[u][next_u])
-                                        + (distance_mat[v][u] + distance_mat[u][next_v] - distance_mat[v][next_v]);
-                        
-                        if (delta_shift < best_delta) {
-                            best_delta = delta_shift;
-                            move_type = 3;
-                            best_u_idx = i;
-                            best_v_idx = j;
+                    if (next_v != u) { 
+                        int delta = dist[u][v] + dist[next_u][next_v] - (dist[u][next_u] + dist[v][next_v]);
+                        if (delta < 0) {
+                            // Apply 2-opt: reverse segment between next_u and v
+                            int t_start = idx_next_u;
+                            int t_end = idx_v;
+                            int num_swaps = ((t_end - t_start + n_sol) % n_sol + 1) / 2;
+                            for(int k=0; k<num_swaps; ++k) {
+                                int p1 = (t_start + k) % n_sol;
+                                int p2 = (t_end - k + n_sol) % n_sol;
+                                int val1 = sol[p1];
+                                int val2 = sol[p2];
+                                std::swap(sol[p1], sol[p2]);
+                                pos[val1] = p2;
+                                pos[val2] = p1;
+                            }
+                            
+                            dlb[u] = false; dlb[v] = false; 
+                            dlb[next_u] = false; dlb[next_v] = false;
+                            move_found = true;
+                            break; 
                         }
                     }
                 } else {
-                    // v is NOT in solution (In-Out Swap)
-                    // Swap u (at i) with v
-                    // Remove u: - dist(prev_u, u) - cost(u) - dist(u, next_u) - cost(next_u)
-                    // Add v: + dist(prev_u, v) + cost(v) + dist(v, next_u) + cost(next_u)
-                    // cost(next_u) cancels.
-                    // Delta: dist(prev_u, v) + dist(v, next_u) + cost(v) - (dist(prev_u, u) + dist(u, next_u) + cost(u))
+                    // v is NOT in solution (Inter-route Swap)
+                    int delta = (dist[prev_u][v] + dist[v][next_u] + node_costs[v]) -
+                                (dist[prev_u][u] + dist[u][next_u] + node_costs[u]);
                     
-                    int delta_swap_out = distance_mat[prev_u][v] + distance_mat[v][next_u] + node_costs[v]
-                                       - (distance_mat[prev_u][u] + distance_mat[u][next_u] + node_costs[u]);
-                                       
-                    if (delta_swap_out < best_delta) {
-                        best_delta = delta_swap_out;
-                        move_type = 4;
-                        best_u_idx = i;
-                        best_v_val = v;
+                    if (delta < 0) {
+                        sol[idx_u] = v;
+                        pos[u] = -1;
+                        pos[v] = idx_u;
+                        
+                        dlb[v] = false; 
+                        dlb[prev_u] = false; 
+                        dlb[next_u] = false;
+                        move_found = true;
+                        break;
                     }
                 }
             }
-        }
 
-        if (move_type != 0) {
-            improvement = true;
-            if (move_type == 1) { // 2-opt
-                int start = (best_u_idx + 1) % solution.size();
-                int end = best_v_idx;
-                int len = solution.size();
-                int dist = (end - start + len) % len;
-                int steps = (dist + 1) / 2;
-                for(int k=0; k<steps; ++k) {
-                    int p1 = (start + k) % len;
-                    int p2 = (end - k + len) % len;
-                    int val1 = solution[p1];
-                    int val2 = solution[p2];
-                    std::swap(solution[p1], solution[p2]);
-                    node_pos[val1] = p2;
-                    node_pos[val2] = p1;
-                }
-            } else if (move_type == 2) { // Swap In-In
-                int val1 = solution[best_u_idx];
-                int val2 = solution[best_v_idx];
-                std::swap(solution[best_u_idx], solution[best_v_idx]);
-                node_pos[val1] = best_v_idx;
-                node_pos[val2] = best_u_idx;
-            } else if (move_type == 3) { // Shift In-In
-                int u_val = solution[best_u_idx];
-                solution.erase(solution.begin() + best_u_idx);
-                if (best_u_idx < best_v_idx) best_v_idx--; 
-                solution.insert(solution.begin() + best_v_idx + 1, u_val);
-                // Rebuild node_pos (easier than updating)
-                for(size_t k=0; k<solution.size(); ++k) node_pos[solution[k]] = k;
-            } else if (move_type == 4) { // Swap In-Out
-                int old_u = solution[best_u_idx];
-                solution[best_u_idx] = best_v_val;
-                node_pos[old_u] = -1;
-                node_pos[best_v_val] = best_u_idx;
+            if (move_found) {
+                improved = true;
+            } else {
+                dlb[u] = true;
             }
         }
     }
-
-    return solution;
+    return sol;
 }
-
-// Double Bridge Perturbation
-inline auto double_bridge_perturbation(const Solution& solution, auto& rng) {
-    int n = solution.size();
-    if (n < 8) return solution;
-
-    std::uniform_int_distribution<int> dist(1, n - 1);
-    std::vector<int> cuts;
-    while(cuts.size() < 3) {
-        int c = dist(rng);
-        bool ok = true;
-        for(int existing : cuts) if(std::abs(existing - c) < 1) ok = false; 
-        if(ok) cuts.push_back(c);
-    }
-    std::sort(cuts.begin(), cuts.end());
-    
-    int s1 = cuts[0];
-    int s2 = cuts[1];
-    int s3 = cuts[2];
-    
-    Solution new_sol;
-    new_sol.reserve(n);
-    
-    new_sol.insert(new_sol.end(), solution.begin(), solution.begin() + s1);
-    new_sol.insert(new_sol.end(), solution.begin() + s3, solution.end());
-    new_sol.insert(new_sol.end(), solution.begin() + s2, solution.begin() + s3);
-    new_sol.insert(new_sol.end(), solution.begin() + s1, solution.begin() + s2);
-    
-    return new_sol;
-}
-
-// ILS with Candidates and Double Bridge + Random Swaps
-inline auto ils_db_candidates(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    const CandidateMatrix& candidates,
-    int solution_length,
-    int points_length,
-    auto& random_engine
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t ls_runs{ 0 };
-
-    Solution x = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-    x = local_search_candidates(x, distance_mat, node_costs, candidates); ++ls_runs;
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = double_bridge_perturbation(x, random_engine);
-        // Also perform some random In-Out swaps to ensure set diversity, 
-        // since double bridge only permutes current set.
-        y = perturb_solution(y, points_length, 5, random_engine); 
-
-        y = local_search_candidates(std::move(y), distance_mat, node_costs, candidates); ++ls_runs;
-        
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
-
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x;
-            }
-        }
-    }
-
-    return std::make_tuple(best_solution, ls_runs);
-}
-
 
 inline auto generate_random_solution(int solution_length, int points_length, auto& random_engine) {
     Solution solution(points_length);
@@ -581,601 +459,89 @@ inline auto multiple_start_local_search(size_t max_iters, const DistanceMatrix& 
     return best;
 }
 
-inline auto perturb_solution(const Solution& solution, int points_length, int perturbation_strength, auto& random_engine) {
-    auto perturbed_solution = solution;
-
-    std::vector<int> non_solution_nodes;
-    std::vector<bool> in_solution(points_length, false);
-    for (int node : solution) {
-        in_solution[node] = true;
-    }
-    for (int i = 0; i < points_length; ++i) {
-        if (!in_solution[i]) {
-            non_solution_nodes.push_back(i);
-        }
-    }
-
-    if (non_solution_nodes.empty()) {
-        return perturbed_solution;
-    }
-
-    int max_swaps = std::min({
-        static_cast<int>(perturbed_solution.size()), 
-        static_cast<int>(non_solution_nodes.size()), 
-        perturbation_strength
-    });
-
-    std::uniform_int_distribution<size_t> sol_dist(0, perturbed_solution.size() - 1);
-    std::uniform_int_distribution<size_t> non_sol_dist(0, non_solution_nodes.size() - 1);
-
-    for (int i = 0; i < max_swaps; ++i) {
-        size_t idx_to_remove = sol_dist(random_engine);
-        size_t idx_to_add = non_sol_dist(random_engine);
-
-        int node_to_remove = perturbed_solution[idx_to_remove];
-        int node_to_add = non_solution_nodes[idx_to_add];
-
-        perturbed_solution[idx_to_remove] = node_to_add;
-        non_solution_nodes[idx_to_add] = node_to_remove; 
-    }
-
-    return perturbed_solution;
-}
-
-inline auto iterated_local_search(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    int solution_length,
-    int points_length,
-    auto& random_engine,
-    int perturbation_strength = 21
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t ls_runs{ 0 };
-
-    Solution x = generate_random_solution(solution_length, points_length, random_engine);
-    x = local_search_steepest_edges(x, distance_mat, node_costs); ++ls_runs;
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = perturb_solution(x, points_length, perturbation_strength, random_engine);
-        y = local_search_steepest_edges(std::move(y), distance_mat, node_costs); ++ls_runs;
-        
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
-
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x;
-            }
-        }
-    }
-
-    return std::make_tuple(best_solution, ls_runs);
-}
-
-inline auto destroy(
-    Solution solution,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    auto& rng,
-    double strength,
-    double cost_weight = 1.0, 
-    double dist_weight = 1.0
-) {
-    int N = solution.size();
-    if (N < 3 || strength <= 0.0) return solution;
-
-    int total_to_remove = static_cast<int>(N * strength);
-    if (N - total_to_remove < 2) total_to_remove = N - 2;
-
-    std::vector<bool> masked(N, false); 
-    int currently_marked = 0;
-
-    while (currently_marked < total_to_remove) {
-        int remaining = total_to_remove - currently_marked;
-        int max_len = std::min(remaining, N / 2); 
-        if (max_len < 1) break;
-
-        std::uniform_int_distribution<int> len_dist(1, max_len);
-        int window_len = len_dist(rng);
-
-        std::vector<double> weights;
-        std::vector<int> start_indices;
-        
-        for (int i = 0; i < N; ++i) {
-            bool overlaps = false;
-            for (int k = 0; k < window_len; ++k) {
-                int idx = (i + k) % N; 
-                if (masked[idx]) { 
-                    overlaps = true; 
-                    if (idx >= i) i = idx; 
-                    break; 
-                }
-            }
-            if (overlaps) continue; 
-
-            double w_cost = 0.0;
-            double w_dist = 0.0;
-
-            for (int k = 0; k < window_len; ++k) {
-                int curr = solution[(i + k) % N];
-                int next = solution[(i + k + 1) % N]; 
-                w_cost += node_costs[curr];
-                w_dist += distance_mat[curr][next];
-            }
-            double score = (cost_weight * w_cost) + (dist_weight * w_dist);
-            weights.push_back(score * score); 
-            start_indices.push_back(i);
-        }
-
-        if (weights.empty()) break;
-
-        std::discrete_distribution<int> dist(weights.begin(), weights.end());
-        int picked_idx = dist(rng);
-        int start_node_idx = start_indices[picked_idx];
-
-        for (int k = 0; k < window_len; ++k) {
-            int idx = (start_node_idx + k) % N;
-            masked[idx] = true;
-        }
-        currently_marked += window_len;
-    }
-
-    std::vector<int> new_solution;
-    new_solution.reserve(N - currently_marked);
-
-    for (int i = 0; i < N; ++i) {
-        if (!masked[i]) {
-            new_solution.push_back(solution[i]);
-        }
-    }
-
-    return new_solution;
-}
-
-inline auto nn_insert_weighted_regret(Solution solution, int solution_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, double regret_weight = 1.0, double cost_weight = 1.0) {
-    solution.reserve(solution_length);
-
-    std::vector<bool> visited(distance_mat.size(), false);
-    for (int node : solution) {
-        visited[node] = true;
-    }
-
-    while (solution.size() < (size_t)solution_length) {
-        int best_point_to_add = -1;
-        size_t best_insertion_index = -1;
-        double max_weighted_score = -std::numeric_limits<double>::max();
-
-        for (size_t p = 0; p < distance_mat.size(); ++p) {
-            if (!visited[p]) {
-                int min_cost1 = std::numeric_limits<int>::max();
-                int min_cost2 = std::numeric_limits<int>::max();
-                size_t current_best_insertion_index = -1;
-
-                for (size_t insert_index = 0; insert_index <= solution.size(); ++insert_index) {
-                    int cost_increase;
-                    if (insert_index == 0) {
-                        cost_increase = distance_mat[p][solution.front()] + node_costs[p];
-                    } else if (insert_index == solution.size()) {
-                        cost_increase = distance_mat[solution.back()][p] + node_costs[p];
-                    } else {
-                        int from_node = solution[insert_index - 1];
-                        int to_node = solution[insert_index];
-                        cost_increase = distance_mat[from_node][p] + distance_mat[p][to_node] - distance_mat[from_node][to_node] + node_costs[p];
-                    }
-
-                    if (cost_increase < min_cost1) {
-                        min_cost2 = min_cost1;
-                        min_cost1 = cost_increase;
-                        current_best_insertion_index = insert_index;
-                    } else if (cost_increase < min_cost2) {
-                        min_cost2 = cost_increase;
-                    }
-                }
-
-                double regret = (min_cost2 == std::numeric_limits<int>::max()) ? min_cost1 : (min_cost2 - min_cost1);
-                double weighted_score = regret_weight * regret - cost_weight * min_cost1;
-
-                if (weighted_score > max_weighted_score) {
-                    max_weighted_score = weighted_score;
-                    best_point_to_add = p;
-                    best_insertion_index = current_best_insertion_index;
-                }
-            }
-        }
-
-        if (best_point_to_add != -1) {
-            solution.insert(solution.begin() + best_insertion_index, best_point_to_add);
-            visited[best_point_to_add] = true;
-        } else { 
-            break; 
-        }
-    }
-
-    return solution;
-}
-
-// Helper for greedy start
-inline auto generate_greedy_solution(int solution_length, int points_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs, auto& rng) {
-    // Start with a random node
-    Solution sol;
-    sol.push_back(std::uniform_int_distribution<int>(0, points_length-1)(rng));
-    return nn_insert_weighted_regret(sol, solution_length, distance_mat, node_costs);
-}
-
-// Improved ILS with Candidate Lists and Greedy Start
-inline auto ils_candidates(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    const CandidateMatrix& candidates,
-    int solution_length,
-    int points_length,
-    auto& random_engine
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t ls_runs{ 0 };
-
-    // Better Start
-    Solution x = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-    // Faster LS
-    x = local_search_candidates(x, distance_mat, node_costs, candidates); ++ls_runs;
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = perturb_solution(x, points_length, 21, random_engine);
-        y = local_search_candidates(std::move(y), distance_mat, node_costs, candidates); ++ls_runs;
-        
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
-
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x;
-            }
-        }
-    }
-
-    return std::make_tuple(best_solution, ls_runs);
-}
-
-// Simulated Annealing Function (used as LS replacement)
-inline auto simulated_annealing_search(
-    Solution solution, 
-    const DistanceMatrix& distance_mat, 
-    const std::vector<int>& node_costs, 
-    const CandidateMatrix& candidates,
-    auto& rng
-) {
-    int current_score = calculate_objective_function(distance_mat, solution, node_costs);
-    Solution best_sol = solution;
-    int best_score = current_score;
+// Robust Crossover (Edge Recombination Style)
+inline Solution crossover_edge_recombination(const Solution& p1, const Solution& p2, int solution_length, int points_length, const DistanceMatrix& dist, auto& rng) {
+    // Collect edges from both parents
+    // We treat edges as undirected: (u, v) == (v, u)
+    // Map: node -> list of neighbors in p1/p2
+    std::vector<std::vector<int>> neighbors(points_length); // for all points, though only some are in p1/p2
     
-    // Parameters for SA (Agile)
-    double temp = 50.0;
-    double alpha = 0.90;
-    int iter_per_temp = 50; 
-    
-    while (temp > 0.1) {
-        for (int k = 0; k < iter_per_temp; ++k) {
-             if (std::uniform_int_distribution<int>(0, 1)(rng) == 0) {
-                 // 2-opt
-                 int idx1 = std::uniform_int_distribution<int>(0, solution.size()-1)(rng);
-                 int u = solution[idx1];
-                 const auto& cands = candidates[u];
-                 if(cands.empty()) continue;
-                 int v = cands[std::uniform_int_distribution<int>(0, cands.size()-1)(rng)];
-                 
-                 auto it = std::find(solution.begin(), solution.end(), v);
-                 if (it == solution.end()) continue;
-                 int idx2 = std::distance(solution.begin(), it);
-                 
-                 int i = idx1, j = idx2;
-                 if (i > j) std::swap(i, j);
-                 
-                 if (i == j || i+1 == j || (i==0 && j==solution.size()-1)) continue;
-                 
-                 int u1 = solution[i];
-                 int v1 = solution[i+1];
-                 int u2 = solution[j];
-                 int v2 = solution[(j+1)%solution.size()];
-                 
-                 int delta = distance_mat[u1][u2] + distance_mat[v1][v2] - (distance_mat[u1][v1] + distance_mat[u2][v2]);
-                 
-                 if (delta < 0 || std::bernoulli_distribution(std::exp(-delta/temp))(rng)) {
-                     std::reverse(solution.begin() + i + 1, solution.begin() + j + 1);
-                     current_score += delta;
-                     if (current_score < best_score) {
-                         best_score = current_score;
-                         best_sol = solution;
-                     }
-                 }
-             } else {
-                 // Swap
-                 int idx = std::uniform_int_distribution<int>(0, solution.size()-1)(rng);
-                 int u = solution[idx];
-                 const auto& cands = candidates[u];
-                 std::vector<int> valid_cands;
-                 for(int c : cands) valid_cands.push_back(c);
-                 if(valid_cands.empty()) continue;
-                 int v = valid_cands[std::uniform_int_distribution<int>(0, valid_cands.size()-1)(rng)];
-                 
-                 bool in_sol = false;
-                 for(int n : solution) if(n == v) { in_sol = true; break; }
-                 if(in_sol) continue;
-                 
-                 int prev = (idx == 0) ? solution.back() : solution[idx-1];
-                 int next = (idx == solution.size()-1) ? solution.front() : solution[idx+1];
-                 
-                 int delta = (distance_mat[prev][v] + distance_mat[v][next] + node_costs[v]) -
-                             (distance_mat[prev][u] + distance_mat[u][next] + node_costs[u]);
-                             
-                 if (delta < 0 || std::bernoulli_distribution(std::exp(-delta/temp))(rng)) {
-                     solution[idx] = v;
-                     current_score += delta;
-                     if (current_score < best_score) {
-                         best_score = current_score;
-                         best_sol = solution;
-                     }
-                 }
-             }
-        }
-        temp *= alpha;
-    }
-    return best_sol;
-}
-
-// ILS with SA (User Request)
-inline auto ils_sa(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    const CandidateMatrix& candidates,
-    int solution_length,
-    int points_length,
-    auto& random_engine
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t ls_runs{ 0 }; 
-
-    Solution x = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-    x = simulated_annealing_search(x, distance_mat, node_costs, candidates, random_engine); ++ls_runs;
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = perturb_solution(x, points_length, 21, random_engine);
-        y = simulated_annealing_search(std::move(y), distance_mat, node_costs, candidates, random_engine); ++ls_runs;
+    auto add_edge = [&](int u, int v) {
+        // Only add if not duplicate (max 4 neighbors per node potentially, usually 2 to 4)
+        bool exists = false;
+        for(int n : neighbors[u]) if(n == v) exists = true;
+        if(!exists) neighbors[u].push_back(v);
         
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
+        exists = false;
+        for(int n : neighbors[v]) if(n == u) exists = true;
+        if(!exists) neighbors[v].push_back(u);
+    };
 
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x;
-            }
-        }
-    }
+    for(size_t i=0; i<p1.size(); ++i) add_edge(p1[i], p1[(i+1)%p1.size()]);
+    for(size_t i=0; i<p2.size(); ++i) add_edge(p2[i], p2[(i+1)%p2.size()]);
 
-    return std::make_tuple(best_solution, ls_runs);
-}
-
-// LNS with Candidates (New Strategy)
-inline auto lns_candidates(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    const CandidateMatrix& candidates,
-    int solution_length,
-    int points_length,
-    auto& random_engine
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t main_loop_runs{ 0 };
-
-    Solution x = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-    x = local_search_candidates(x, distance_mat, node_costs, candidates);
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = destroy(x, distance_mat, node_costs, random_engine, 0.4);
-        y = nn_insert_weighted_regret(std::move(y), x.size(), distance_mat, node_costs);
-        y = local_search_candidates(std::move(y), distance_mat, node_costs, candidates);
-
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
-
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x;
-            }
-        }
-        main_loop_runs++;
-    }
-
-    return std::make_tuple(best_solution, main_loop_runs);
-}
-
-template<bool use_ls>
-inline auto large_neighborhood_search(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    int solution_length,
-    int points_length,
-    auto& random_engine
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t main_loop_runs{ 0 };
-
-    Solution x = generate_random_solution(solution_length, points_length, random_engine);
-    x = local_search_steepest_edges(x, distance_mat, node_costs);
-
-    int x_score = calculate_objective_function(distance_mat, x, node_costs);
-    Solution best_solution = x;
-    int best_score = x_score;
-
-    while (std::chrono::steady_clock::now() - start_time < stop_duration) {
-        Solution y = destroy(x, distance_mat, node_costs, random_engine, 0.4);
-        y = nn_insert_weighted_regret(std::move(y), x.size(), distance_mat, node_costs);
-
-        if constexpr (use_ls) {
-            y = local_search_steepest_edges(std::move(y), distance_mat, node_costs);
-        }
-
-        int y_score = calculate_objective_function(distance_mat, y, node_costs);
-
-        if (y_score < x_score) {
-            x = std::move(y);
-            x_score = y_score;
-            if (x_score < best_score) {
-                best_score = x_score;
-                best_solution = x; // This is a copy
-            }
-        }
-        main_loop_runs++;
-    }
-
-    return std::make_tuple(best_solution, main_loop_runs);
-}
-
-inline Solution hea_operator_1(const Solution& p1, const Solution& p2, int solution_length, int points_length, auto& rng, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
-    std::set<std::pair<int, int>> p2_edges;
-    for (size_t i = 0; i < p2.size(); ++i) {
-        int u = p2[i];
-        int v = p2[(i + 1) % p2.size()];
-        if (u > v) std::swap(u, v);
-        p2_edges.insert({u, v});
-    }
-
-    std::vector<std::vector<int>> fragments;
-    std::vector<bool> p1_visited(p1.size(), false);
-
-    for(size_t i = 0; i < p1.size(); ++i) {
-        if(p1_visited[i]) continue;
-        
-        std::vector<int> current_fragment;
-        current_fragment.push_back(p1[i]);
-        p1_visited[i] = true;
-
-        size_t curr_idx = i;
-        while(true) {
-            size_t next_idx = (curr_idx + 1) % p1.size();
-            int u = p1[curr_idx];
-            int v = p1[next_idx];
-            int u_s = u, v_s = v;
-            if(u_s > v_s) std::swap(u_s, v_s);
-
-            if(p2_edges.count({u_s, v_s})) {
-                if(p1_visited[next_idx] && next_idx != i) {
-                     break;
-                }
-                if(next_idx == i) {
-                    break;
-                }
-                current_fragment.push_back(v);
-                p1_visited[next_idx] = true;
-                curr_idx = next_idx;
-            } else {
-                break;
-            }
-        }
-        fragments.push_back(current_fragment);
-    }
-
-    std::set<int> p2_nodes(p2.begin(), p2.end());
-    for(size_t i=0; i<p1.size(); ++i) {
-        int u = p1[i];
-        if (p2_nodes.count(u)) {
-            bool in_frag = false;
-            for(const auto& frag : fragments) { for(int node : frag) if(node == u) { in_frag = true; break; } if(in_frag) break; }
-            if(!in_frag) {
-                 fragments.push_back({u});
-            }
-        }
-    }
-
-    std::set<int> current_nodes;
-    for(const auto& frag : fragments) 
-        for(int node : frag) current_nodes.insert(node);
-    
-    std::vector<int> available_nodes;
-    for(int i=0; i<points_length; ++i) {
-        if(!current_nodes.count(i)) available_nodes.push_back(i);
-    }
-    std::shuffle(available_nodes.begin(), available_nodes.end(), rng);
-
-    while(current_nodes.size() < (size_t)solution_length && !available_nodes.empty()) {
-        int new_node = available_nodes.back();
-        available_nodes.pop_back();
-        current_nodes.insert(new_node);
-        fragments.push_back({new_node});
-    }
-
-    std::shuffle(fragments.begin(), fragments.end(), rng);
     Solution child;
     child.reserve(solution_length);
+    std::vector<bool> in_child(points_length, false);
 
-    for(auto& frag : fragments) {
-        if(std::uniform_int_distribution<int>(0, 1)(rng)) {
-            std::reverse(frag.begin(), frag.end());
+    // Start with a random node from p1 (to bias towards p1's structure if p2 is diverse)
+    // or just p1[0]
+    int current = p1[0]; 
+    child.push_back(current);
+    in_child[current] = true;
+
+    while(child.size() < (size_t)solution_length) {
+        // Find neighbor of current with fewest edges in neighbor map (that is not in child)
+        int best_next = -1;
+        int min_neighbors = 10000;
+        int best_dist = std::numeric_limits<int>::max();
+
+        // Check explicit neighbors
+        for(int neighbor : neighbors[current]) {
+            if(!in_child[neighbor]) {
+                int deg = 0;
+                for(int n_of_n : neighbors[neighbor]) if(!in_child[n_of_n]) deg++;
+                
+                // Tie-breaking by distance (original Edge Recombination is just degree)
+                // Adding distance heuristic helps convergence
+                if (deg < min_neighbors) {
+                    min_neighbors = deg;
+                    best_next = neighbor;
+                    best_dist = dist[current][neighbor];
+                } else if (deg == min_neighbors) {
+                    if (dist[current][neighbor] < best_dist) {
+                        best_next = neighbor;
+                        best_dist = dist[current][neighbor];
+                    }
+                }
+            }
         }
-        child.insert(child.end(), frag.begin(), frag.end());
-    }
 
-    if(child.size() > (size_t)solution_length) child.resize(solution_length);
-    
-    return child;
-}
-
-inline Solution hea_operator_2(const Solution& p1, const Solution& p2, int solution_length, int points_length, const DistanceMatrix& distance_mat, const std::vector<int>& node_costs) {
-    std::set<int> p2_nodes(p2.begin(), p2.end());
-    
-    Solution child;
-    child.reserve(solution_length);
-    
-    for (int node : p1) {
-        if (p2_nodes.count(node)) {
-            child.push_back(node);
+        if (best_next == -1) {
+            // Random unvisited node (from union of p1/p2 preferred?)
+            // Let's try to pick from p1 or p2 unused nodes first
+            std::vector<int> candidates;
+            for(int x : p1) if(!in_child[x]) candidates.push_back(x);
+            if(candidates.empty()) for(int x : p2) if(!in_child[x]) candidates.push_back(x);
+            
+            if(!candidates.empty()) {
+                std::uniform_int_distribution<size_t> d(0, candidates.size()-1);
+                best_next = candidates[d(rng)];
+            } else { 
+                 // Global fallback (shouldn't happen if p1/p2 have size K)
+                 for(int i=0; i<points_length; ++i) if(!in_child[i]) { best_next = i; break; }
+            }
         }
-    }
-
-    if (child.size() < (size_t)solution_length) {
-         child = nn_insert_weighted_regret(std::move(child), solution_length, distance_mat, node_costs);
+        
+        current = best_next;
+        child.push_back(current);
+        in_child[current] = true;
     }
     
     return child;
 }
 
-enum class HEAVariant {
-    Op1_LS,
-    Op2_NoLS,
-    Op2_LS
-};
-
-// New: HEA with Candidates
-inline auto hea_candidates(
+inline auto run_hea_optimized(
     std::chrono::nanoseconds stop_duration,
     const DistanceMatrix& distance_mat,
     const std::vector<int>& node_costs,
@@ -1187,202 +553,129 @@ inline auto hea_candidates(
     auto start_time = std::chrono::steady_clock::now();
     size_t ls_runs = 0;
     
+    const size_t POP_SIZE = 20; 
     std::vector<Solution> population;
-    std::vector<int> pop_scores;
-    const size_t POP_SIZE = 20;
+    std::vector<int> fitness;
     
-    // Greedy Start + Candidates LS
+    // Initialize Population
     while(population.size() < POP_SIZE) {
-        // Use greedy start for pop init
-        Solution sol = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-        sol = local_search_candidates(sol, distance_mat, node_costs, candidates);
-        int score = calculate_objective_function(distance_mat, sol, node_costs);
+        Solution sol = generate_random_solution(solution_length, points_length, random_engine);
+        sol = local_search_fast(sol, distance_mat, node_costs, candidates); ls_runs++;
+        int f = calculate_objective_function(distance_mat, sol, node_costs);
         
-        bool exists = false;
-        for(int s : pop_scores) if(s == score) { exists = true; break; }
+        bool unique = true;
+        for(int existing_f : fitness) if(existing_f == f) unique = false;
         
-        if(!exists) {
+        if(unique) {
             population.push_back(sol);
-            pop_scores.push_back(score);
-            ls_runs++;
+            fitness.push_back(f);
         }
     }
     
-    Solution best_solution = population[0];
-    int best_score = pop_scores[0];
-    for(size_t i=1; i<POP_SIZE; ++i) {
-        if(pop_scores[i] < best_score) {
-            best_score = pop_scores[i];
-            best_solution = population[i];
-        }
-    }
+    // Sort population by fitness (best first)
+    // We maintain this order or just find best/worst when needed.
+    // Let's keep it simple: find indices.
     
-    std::uniform_int_distribution<size_t> parent_dist(0, POP_SIZE - 1);
+    auto get_best_idx = [&]() {
+        int min_f = std::numeric_limits<int>::max();
+        int idx = -1;
+        for(size_t i=0; i<fitness.size(); ++i) if(fitness[i] < min_f) { min_f = fitness[i]; idx = i; }
+        return idx;
+    };
+    
+    int best_idx = get_best_idx();
+    Solution global_best = population[best_idx];
+    int global_best_score = fitness[best_idx];
     
     int iterations_without_improvement = 0;
-
+    
     while(std::chrono::steady_clock::now() - start_time < stop_duration) {
-        // Cataclysm check
-        int min_s = pop_scores[0], max_s = pop_scores[0];
-        for(int s : pop_scores) {
-            if(s < min_s) min_s = s;
-            if(s > max_s) max_s = s;
+        // Selection: Binary Tournament for P1, Random for P2 (or Tournament P2)
+        std::uniform_int_distribution<size_t> dist_idx(0, POP_SIZE - 1);
+        int i1 = dist_idx(random_engine);
+        int i2 = dist_idx(random_engine);
+        int p1_idx = (fitness[i1] < fitness[i2]) ? i1 : i2;
+        
+        int p2_idx = dist_idx(random_engine);
+        while(p2_idx == p1_idx) p2_idx = dist_idx(random_engine);
+        
+        // Crossover
+        Solution child = crossover_edge_recombination(population[p1_idx], population[p2_idx], solution_length, points_length, distance_mat, random_engine);
+        
+        // Mutation: Heavy Kick if stagnating? Or always small kick?
+        // Edge Recombination is greedy, so child might be locally optimal already or close.
+        // Apply LS immediately? 
+        // Standard Memetic Algorithm: Crossover -> Mutation -> LS
+        
+        if (std::uniform_real_distribution<>(0, 1)(random_engine) < 0.05) {
+            // Double Bridge
+             if (child.size() > 8) {
+                std::uniform_int_distribution<int> cut_dist(1, child.size() - 1);
+                std::vector<int> cuts;
+                while(cuts.size() < 3) {
+                    int c = cut_dist(random_engine);
+                    bool ok = true; 
+                    for(int existing : cuts) if(abs(existing - c) < 1) ok = false;
+                    if(ok) cuts.push_back(c);
+                }
+                std::sort(cuts.begin(), cuts.end());
+                Solution m; m.reserve(child.size());
+                m.insert(m.end(), child.begin(), child.begin() + cuts[0]);
+                m.insert(m.end(), child.begin() + cuts[2], child.end());
+                m.insert(m.end(), child.begin() + cuts[1], child.begin() + cuts[2]);
+                m.insert(m.end(), child.begin() + cuts[0], child.begin() + cuts[1]);
+                child = m;
+             }
         }
         
-        if (max_s - min_s == 0 || iterations_without_improvement > 200) {
-             // Trigger Cataclysm: Keep best, replace others
-             size_t best_idx = 0;
-             for(size_t i=0; i<POP_SIZE; ++i) if(pop_scores[i] == min_s) { best_idx = i; break; }
-             
+        // LS
+        child = local_search_fast(child, distance_mat, node_costs, candidates); ls_runs++;
+        int child_f = calculate_objective_function(distance_mat, child, node_costs);
+        
+        // Replacement Strategy: Steady State / Replace Worst
+        // But maintain diversity (no duplicate fitness)
+        bool exists = false;
+        for(int f : fitness) if(f == child_f) exists = true;
+        
+        if (!exists) {
+            // Replace worst if child is better than worst
+            int max_f = -1;
+            int worst_idx = -1;
+            for(size_t i=0; i<fitness.size(); ++i) {
+                if(fitness[i] > max_f) { max_f = fitness[i]; worst_idx = i; }
+            }
+            
+            if (child_f < max_f) {
+                population[worst_idx] = child;
+                fitness[worst_idx] = child_f;
+                
+                if (child_f < global_best_score) {
+                    global_best_score = child_f;
+                    global_best = child;
+                    iterations_without_improvement = 0;
+                }
+            }
+        } else {
+             iterations_without_improvement++;
+        }
+        
+        // Restart / Cataclysm
+        if (iterations_without_improvement > 300) {
+            // Keep best, kill rest
              for(size_t i=0; i<POP_SIZE; ++i) {
-                 if (i == best_idx) continue;
-                 Solution sol = generate_greedy_solution(solution_length, points_length, distance_mat, node_costs, random_engine);
-                 sol = local_search_candidates(sol, distance_mat, node_costs, candidates);
-                 population[i] = std::move(sol);
-                 pop_scores[i] = calculate_objective_function(distance_mat, population[i], node_costs);
-                 ls_runs++;
+                 if (fitness[i] == global_best_score) continue;
+                 
+                 Solution s = generate_random_solution(solution_length, points_length, random_engine);
+                 s = local_search_fast(s, distance_mat, node_costs, candidates); ls_runs++;
+                 population[i] = s;
+                 fitness[i] = calculate_objective_function(distance_mat, s, node_costs);
              }
              iterations_without_improvement = 0;
         }
-
-        size_t idx1 = parent_dist(random_engine);
-        size_t idx2 = parent_dist(random_engine);
-        while(idx1 == idx2) idx2 = parent_dist(random_engine); 
-        
-        const Solution& p1 = population[idx1];
-        const Solution& p2 = population[idx2];
-        
-        // HEA Op1
-        Solution child = hea_operator_1(p1, p2, solution_length, points_length, random_engine, distance_mat, node_costs);
-        child = local_search_candidates(std::move(child), distance_mat, node_costs, candidates);
-        ls_runs++;
-        
-        int child_score = calculate_objective_function(distance_mat, child, node_costs);
-        
-        if(child_score < best_score) {
-            best_score = child_score;
-            best_solution = child;
-            iterations_without_improvement = 0;
-        } else {
-            iterations_without_improvement++;
-        }
-        
-        bool exists = false;
-        for(int s : pop_scores) if(s == child_score) { exists = true; break; }
-        
-        if(!exists) {
-            int max_score = -1;
-            size_t worst_idx = 0;
-            for(size_t i=0; i<POP_SIZE; ++i) {
-                if(pop_scores[i] > max_score) {
-                    max_score = pop_scores[i];
-                    worst_idx = i;
-                }
-            }
-            
-            if(child_score < max_score) {
-                population[worst_idx] = std::move(child);
-                pop_scores[worst_idx] = child_score;
-            }
-        }
     }
     
-    return std::make_tuple(best_solution, ls_runs);
+    return std::make_tuple(global_best, ls_runs);
 }
-
-inline auto hybrid_evolutionary_algorithm(
-    std::chrono::nanoseconds stop_duration,
-    const DistanceMatrix& distance_mat,
-    const std::vector<int>& node_costs,
-    int solution_length,
-    int points_length,
-    auto& random_engine,
-    HEAVariant variant
-) {
-    auto start_time = std::chrono::steady_clock::now();
-    size_t ls_runs = 0;
-    
-    std::vector<Solution> population;
-    std::vector<int> pop_scores;
-    const size_t POP_SIZE = 20;
-    
-    while(population.size() < POP_SIZE) {
-        Solution sol = generate_random_solution(solution_length, points_length, random_engine);
-        sol = local_search_steepest_edges(sol, distance_mat, node_costs);
-        int score = calculate_objective_function(distance_mat, sol, node_costs);
-        
-        bool exists = false;
-        for(int s : pop_scores) if(s == score) { exists = true; break; }
-        
-        if(!exists) {
-            population.push_back(sol);
-            pop_scores.push_back(score);
-            ls_runs++;
-        }
-    }
-    
-    Solution best_solution = population[0];
-    int best_score = pop_scores[0];
-    for(size_t i=1; i<POP_SIZE; ++i) {
-        if(pop_scores[i] < best_score) {
-            best_score = pop_scores[i];
-            best_solution = population[i];
-        }
-    }
-    
-    std::uniform_int_distribution<size_t> parent_dist(0, POP_SIZE - 1);
-    
-    while(std::chrono::steady_clock::now() - start_time < stop_duration) {
-        size_t idx1 = parent_dist(random_engine);
-        size_t idx2 = parent_dist(random_engine);
-        while(idx1 == idx2) idx2 = parent_dist(random_engine); 
-        
-        const Solution& p1 = population[idx1];
-        const Solution& p2 = population[idx2];
-        
-        Solution child;
-        if(variant == HEAVariant::Op1_LS) {
-            child = hea_operator_1(p1, p2, solution_length, points_length, random_engine, distance_mat, node_costs);
-            child = local_search_steepest_edges(std::move(child), distance_mat, node_costs);
-            ls_runs++;
-        } else if (variant == HEAVariant::Op2_NoLS) {
-            child = hea_operator_2(p1, p2, solution_length, points_length, distance_mat, node_costs);
-        } else { // Op2_LS
-            child = hea_operator_2(p1, p2, solution_length, points_length, distance_mat, node_costs);
-            child = local_search_steepest_edges(std::move(child), distance_mat, node_costs);
-            ls_runs++;
-        }
-        
-        int child_score = calculate_objective_function(distance_mat, child, node_costs);
-        
-        if(child_score < best_score) {
-            best_score = child_score;
-            best_solution = child;
-        }
-        
-        bool exists = false;
-        for(int s : pop_scores) if(s == child_score) { exists = true; break; }
-        
-        if(!exists) {
-            int max_score = -1;
-            size_t worst_idx = 0;
-            for(size_t i=0; i<POP_SIZE; ++i) {
-                if(pop_scores[i] > max_score) {
-                    max_score = pop_scores[i];
-                    worst_idx = i;
-                }
-            }
-            
-            if(child_score < max_score) {
-                population[worst_idx] = std::move(child);
-                pop_scores[worst_idx] = child_score;
-            }
-        }
-    }
-    
-    return std::make_tuple(best_solution, ls_runs);
-}
-
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -1400,7 +693,7 @@ int main(int argc, char* argv[]) {
     std::vector<int> node_costs;
     for(const auto& p : points) node_costs.push_back(p.cost);
 
-    // Precompute Candidates (Increased to 40)
+    // Precompute Candidates
     auto candidates = calculate_candidate_matrix(distance_mat, 40);
 
     auto rng = std::mt19937{156053 + 156042};
@@ -1431,157 +724,19 @@ int main(int argc, char* argv[]) {
     auto avg_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(avg_ms);
     solutions.clear(); times.clear(); std::cout << std::endl;
 
-    // 2. ILS
-    std::cout << "Running ILS" << std::flush;
+    // 2. HEA Optimized (New)
+    std::cout << "Running HEA Optimized" << std::flush;
     for (size_t i = 0; i < max_runs; ++i) {
         auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ iterated_local_search(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng) };
+        const auto result{ run_hea_optimized(avg_ns, distance_mat, node_costs, candidates, solution_length, points.size(), rng) };
         solutions.emplace_back(std::get<0>(result));
         ls_runs.emplace_back(std::get<1>(result));
         auto end = std::chrono::high_resolution_clock::now();
         times.push_back(end - start);
-        std::cout << "\rRunning ILS " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
+        std::cout << "\rRunning HEA Optimized " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
     }
     std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ils", "ils");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // 3. LNS (with LS)
-    std::cout << "Running LNS (with ls)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ large_neighborhood_search<true>(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning LNS (with ls) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "lns_ls", "lns_ls");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // 4. HEA Op1 (with LS)
-    std::cout << "Running HEA Op1 (with ls)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ hybrid_evolutionary_algorithm(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, HEAVariant::Op1_LS) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning HEA Op1 (with ls) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "hea_op1", "hea_op1");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-    
-    // 5. HEA Op2 (no LS)
-    std::cout << "Running HEA Op2 (no ls)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ hybrid_evolutionary_algorithm(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, HEAVariant::Op2_NoLS) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning HEA Op2 (no ls) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "hea_op2_nols", "hea_op2_nols");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-    
-    // 6. HEA Op2 (with LS)
-    std::cout << "Running HEA Op2 (with ls)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ hybrid_evolutionary_algorithm(avg_ns, distance_mat, node_costs, solution_length, points.size(), rng, HEAVariant::Op2_LS) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning HEA Op2 (with ls) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "hea_op2_ls", "hea_op2_ls");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // --- NEW METHODS ---
-
-    // 7. Improved ILS (Candidates)
-    std::cout << "Running ILS (Candidates)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ ils_candidates(avg_ns, distance_mat, node_costs, candidates, solution_length, points.size(), rng) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning ILS (Candidates) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ils_candidates", "ils_candidates");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // 8. ILS with SA
-    std::cout << "Running ILS (SA)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ ils_sa(avg_ns, distance_mat, node_costs, candidates, solution_length, points.size(), rng) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning ILS (SA) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "ils_sa", "ils_sa");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // 9. LNS Candidates (New Strategy)
-    std::cout << "Running LNS (Candidates)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ lns_candidates(avg_ns, distance_mat, node_costs, candidates, solution_length, points.size(), rng) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning LNS (Candidates) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "lns_candidates", "lns_candidates");
-    calculate_and_print_time_statistics(times);
-    print_ls_runs_staticits(ls_runs);
-    solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
-
-    // 10. HEA Candidates (New Strategy - Best Bet)
-    std::cout << "Running HEA (Candidates)" << std::flush;
-    for (size_t i = 0; i < max_runs; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        const auto result{ hea_candidates(avg_ns, distance_mat, node_costs, candidates, solution_length, points.size(), rng) };
-        solutions.emplace_back(std::get<0>(result));
-        ls_runs.emplace_back(std::get<1>(result));
-        auto end = std::chrono::high_resolution_clock::now();
-        times.push_back(end - start);
-        std::cout << "\rRunning HEA (Candidates) " << ProgressBar(i, max_runs, max_runs) << " " << std::chrono::duration_cast<std::chrono::seconds>(times.back()).count() * (max_runs - i - 1) << "s left     " << std::flush;
-    }
-    std::cout << std::endl;
-    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "hea_candidates", "hea_candidates");
+    calculate_statistics(points, distance_mat, node_costs, solutions, instance, "hea_opt", "hea_opt");
     calculate_and_print_time_statistics(times);
     print_ls_runs_staticits(ls_runs);
     solutions.clear(); ls_runs.clear(); times.clear(); std::cout << std::endl;
