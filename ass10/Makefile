@@ -1,5 +1,5 @@
 PROBLEMS := TSPA TSPB
-METHODS  := ils_sa
+METHODS  := hea_opt
 
 TARGETS := $(foreach prob,$(PROBLEMS),$(patsubst %,$(prob)_solution_%.png,$(METHODS)))
 
